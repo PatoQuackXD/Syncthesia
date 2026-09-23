@@ -1,4 +1,4 @@
-const API_KEY = "AIzaSyCfOp1sEy3S-e_mIZ2y76ohf331Eh1fsy8"; // coloque sua chave da YouTube Data API v3
+const API_KEY = "AIzaSyCfOp1sEy3S-e_mIZ2y76ohf331Eh1fsy8"; // chave da YouTube Data API v3
 const searchInput = document.getElementById("searchInput");
 const resultsDiv = document.getElementById("results");
 const submitBtn = document.getElementById("submitBtn");
@@ -90,7 +90,8 @@ submitBtn.addEventListener("click", () => {
 
   console.log("Enviando para backend:", { musica, videoId: selectedVideo, cor1, cor2, cor3 });
 
-  fetch("http://127.0.0.1:5000/salvar", {
+  // 🔄 Aqui trocamos para a URL pública do Render
+  fetch("https://meu-backend-jf73.onrender.com/salvar", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ musica, videoId: selectedVideo, cor1, cor2, cor3 })
