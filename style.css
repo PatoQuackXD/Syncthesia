@@ -17,6 +17,22 @@ body {
   margin-top: 20px;
 }
 
+.search-row {
+  display: flex;
+  gap: 8px;
+}
+
+.search-row input[type="text"] {
+  flex: 1;
+  padding: 8px;
+}
+
+.search-row button {
+  width: auto;
+  padding: 8px 16px;
+  white-space: nowrap;
+}
+
 .video {
   display: flex;
   align-items: center;
