@@ -59,6 +59,11 @@ button:disabled {
   cursor: not-allowed;
 }
 
+button.loading {
+  background: #2e7031;
+  cursor: wait;
+}
+
 #confirmacao {
   margin-top: 20px;
   color: green;
