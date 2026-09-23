@@ -1,62 +1,85 @@
-const API_KEY = "AIzaSyCfOp1sEy3S-e_mIZ2y76ohf331Eh1fsy8"; // chave da YouTube Data API v3
 const searchInput = document.getElementById("searchInput");
+const searchBtn = document.getElementById("searchBtn");
 const resultsDiv = document.getElementById("results");
 const submitBtn = document.getElementById("submitBtn");
 const confirmacao = document.getElementById("confirmacao");
 
-let timeout = null;
 let selectedVideo = null;
 let selectedTitle = null;
 
-// Busca em tempo real com debounce
-searchInput.addEventListener("input", () => {
-  clearTimeout(timeout);
+function buscarMusica() {
   const query = searchInput.value.trim();
   if (query.length < 2) {
-    resultsDiv.innerHTML = "";
+    resultsDiv.innerHTML = "Digite pelo menos 2 letras.";
     return;
   }
 
-  timeout = setTimeout(() => {
-    fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=5&q=${encodeURIComponent(query)}&key=${API_KEY}`)
-      .then(response => response.json())
-      .then(data => {
-        resultsDiv.innerHTML = "";
-        data.items.forEach(item => {
-          const videoId = item.id.videoId;
-          const title = item.snippet.title;
-          const thumbnail = item.snippet.thumbnails.default.url;
+  searchBtn.disabled = true;
+  resultsDiv.innerHTML = "Buscando...";
 
-          const div = document.createElement("div");
-          div.classList.add("video");
-          div.innerHTML = `
-            <img src="${thumbnail}" alt="thumb">
-            <span class="video-title" style="cursor:pointer; color:#0066cc; font-weight:bold;">
-              ${title}
-            </span>
+  fetch(`https://meu-backend-jf73.onrender.com/buscar?q=${encodeURIComponent(query)}`)
+    .then(response => response.json())
+    .then(data => {
+      resultsDiv.innerHTML = "";
+
+      if (data.error) {
+        console.error("Erro da API do YouTube:", data.error);
+        resultsDiv.innerHTML = "Não foi possível buscar agora (" + data.error.message + "). Tenta de novo em alguns minutos.";
+        return;
+      }
+
+      if (!data.items || data.items.length === 0) {
+        resultsDiv.innerHTML = "Nenhum resultado encontrado.";
+        return;
+      }
+
+      data.items.forEach(item => {
+        const videoId = item.id.videoId;
+        const title = item.snippet.title;
+        const thumbnail = item.snippet.thumbnails.default.url;
+
+        const div = document.createElement("div");
+        div.classList.add("video");
+        div.innerHTML = `
+          <img src="${thumbnail}" alt="thumb">
+          <span class="video-title" style="cursor:pointer; color:#0066cc; font-weight:bold;">
+            ${title}
+          </span>
+        `;
+
+        // Seleção ao clicar no título
+        div.querySelector(".video-title").addEventListener("click", () => {
+          selectedVideo = videoId;
+          selectedTitle = title;
+          resultsDiv.innerHTML = `
+            <div class="video selected">
+              <img src="${thumbnail}" alt="thumb">
+              <span>${title}</span>
+            </div>
           `;
-
-          // Seleção ao clicar no título
-          div.querySelector(".video-title").addEventListener("click", () => {
-            selectedVideo = videoId;
-            selectedTitle = title;
-            resultsDiv.innerHTML = `
-              <div class="video selected">
-                <img src="${thumbnail}" alt="thumb">
-                <span>${title}</span>
-              </div>
-            `;
-            validarCores(); // revalida para liberar o botão
-          });
-
-          resultsDiv.appendChild(div);
+          validarCores(); // revalida para liberar o botão
         });
-      })
-      .catch(err => {
-        console.error("Erro na pesquisa YouTube:", err);
-        resultsDiv.innerHTML = "Erro na pesquisa: " + err;
+
+        resultsDiv.appendChild(div);
       });
-  }, 300);
+    })
+    .catch(err => {
+      console.error("Erro na pesquisa YouTube:", err);
+      resultsDiv.innerHTML = "Erro na pesquisa: " + err;
+    })
+    .finally(() => {
+      searchBtn.disabled = false;
+    });
+}
+
+searchBtn.addEventListener("click", buscarMusica);
+
+// Também permite buscar apertando Enter no campo de texto
+searchInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    buscarMusica();
+  }
 });
 
 // Validação das cores
