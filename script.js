@@ -90,6 +90,11 @@ submitBtn.addEventListener("click", () => {
 
   console.log("Enviando para backend:", { musica, videoId: selectedVideo, cor1, cor2, cor3 });
 
+  // Trava o botão e avisa o usuário enquanto espera a resposta do backend
+  submitBtn.disabled = true;
+  submitBtn.classList.add("loading");
+  confirmacao.innerText = "Aguarde...";
+
   // 🔄 Aqui trocamos para a URL pública do Render
   fetch("https://meu-backend-jf73.onrender.com/salvar", {
     method: "POST",
@@ -107,5 +112,9 @@ submitBtn.addEventListener("click", () => {
   .catch(err => {
     console.error("Erro no fetch:", err);
     confirmacao.innerText = "Erro ao salvar: " + err;
+  })
+  .finally(() => {
+    submitBtn.classList.remove("loading");
+    validarCores(); // volta o botão pro estado normal (habilitado só se ainda válido)
   });
 });
