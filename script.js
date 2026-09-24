@@ -7,6 +7,50 @@ const confirmacao = document.getElementById("confirmacao");
 let selectedVideo = null;
 let selectedTitle = null;
 
+// Valores das 3 cores escolhidas (preenchidos pelos callbacks do Pickr)
+let cor1Valor = "#ff0000";
+let cor2Valor = "#00ff00";
+let cor3Valor = "#0000ff";
+
+function criarPicker(seletor, corInicial) {
+  return Pickr.create({
+    el: seletor,
+    theme: "classic",
+    default: corInicial,
+    swatches: [], // sem cores prontas: vai direto pro seletor livre
+    components: {
+      preview: true,
+      opacity: false,
+      hue: true,
+      interaction: {
+        hex: true,
+        input: true,
+        save: true
+      }
+    }
+  });
+}
+
+const pickerCor1 = criarPicker("#cor1", cor1Valor);
+const pickerCor2 = criarPicker("#cor2", cor2Valor);
+const pickerCor3 = criarPicker("#cor3", cor3Valor);
+
+pickerCor1.on("save", (cor) => {
+  cor1Valor = cor.toHEXA().toString();
+  pickerCor1.hide();
+  validarCores();
+});
+pickerCor2.on("save", (cor) => {
+  cor2Valor = cor.toHEXA().toString();
+  pickerCor2.hide();
+  validarCores();
+});
+pickerCor3.on("save", (cor) => {
+  cor3Valor = cor.toHEXA().toString();
+  pickerCor3.hide();
+  validarCores();
+});
+
 function buscarMusica() {
   const query = searchInput.value.trim();
   if (query.length < 2) {
@@ -84,27 +128,19 @@ searchInput.addEventListener("keydown", (e) => {
 
 // Validação das cores
 function validarCores() {
-  const cor1 = document.getElementById("cor1").value;
-  const cor2 = document.getElementById("cor2").value;
-  const cor3 = document.getElementById("cor3").value;
-
-  if (cor1 && cor2 && cor3 && cor1 !== cor2 && cor1 !== cor3 && cor2 !== cor3 && selectedVideo) {
+  if (cor1Valor && cor2Valor && cor3Valor && cor1Valor !== cor2Valor && cor1Valor !== cor3Valor && cor2Valor !== cor3Valor && selectedVideo) {
     submitBtn.disabled = false;
   } else {
     submitBtn.disabled = true;
   }
 }
 
-document.getElementById("cor1").addEventListener("input", validarCores);
-document.getElementById("cor2").addEventListener("input", validarCores);
-document.getElementById("cor3").addEventListener("input", validarCores);
-
 // Submissão
 submitBtn.addEventListener("click", () => {
   const musica = searchInput.value;
-  const cor1 = document.getElementById("cor1").value;
-  const cor2 = document.getElementById("cor2").value;
-  const cor3 = document.getElementById("cor3").value;
+  const cor1 = cor1Valor;
+  const cor2 = cor2Valor;
+  const cor3 = cor3Valor;
 
   if (!selectedVideo) {
     alert("Selecione um vídeo!");
