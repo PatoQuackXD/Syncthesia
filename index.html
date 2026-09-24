@@ -2,12 +2,13 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <title>Syncthesia</title>
+  <title>Busca YouTube + Cores</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@simonwep/pickr/dist/themes/classic.min.css">
 </head>
 <body>
   <div class="container">
-    <h2>Pesquisa da música pelo YouTube</h2>
+    <h2>Pesquisar música no YouTube</h2>
     <div class="search-row">
       <input type="text" id="searchInput" placeholder="Digite o nome da música">
       <button id="searchBtn" type="button">Buscar</button>
@@ -16,15 +17,16 @@
 
     <h3>Escolha 3 cores diferentes:</h3>
     <div class="color-group">
-      <input type="color" id="cor1">
-      <input type="color" id="cor2">
-      <input type="color" id="cor3">
+      <div id="cor1" class="color-picker"></div>
+      <div id="cor2" class="color-picker"></div>
+      <div id="cor3" class="color-picker"></div>
     </div>
 
     <button id="submitBtn" disabled>Submeter</button>
     <div id="confirmacao"></div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@simonwep/pickr/dist/pickr.min.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
