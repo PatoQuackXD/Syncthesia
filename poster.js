@@ -75,7 +75,7 @@ function desenharNebulosa(ctx, cores, rand, fundo) {
     { x: 0.1 * POSTER_W, y: 0.97 * POSTER_H },
   ];
 
-  const PONTOS_POR_COR = 45000;
+  const PONTOS_POR_COR = 100000;
   // No preto as cores se somam (lighter); no branco elas se misturam como tinta (multiply)
   ctx.globalCompositeOperation = claro ? "multiply" : "lighter";
 
