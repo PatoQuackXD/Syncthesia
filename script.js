@@ -8,16 +8,24 @@ let selectedVideo = null;
 let selectedTitle = null;
 let selectedChannel = null;
 
-// Valores das 3 cores escolhidas (preenchidos pelos callbacks do Pickr)
-let cor1Valor = "#ff0000";
-let cor2Valor = "#00ff00";
-let cor3Valor = "#0000ff";
+// Cores escolhidas. null = a pessoa ainda não escolheu essa cor.
+// (Não existe mais cor "de fábrica": antes, quem não confirmava no ✓ enviava vermelho/verde/azul sem querer.)
+let cor1Valor = null;
+let cor2Valor = null;
+let cor3Valor = null;
 
-function criarPicker(seletor, corInicial) {
+const definirCor = [
+  (v) => { cor1Valor = v; },
+  (v) => { cor2Valor = v; },
+  (v) => { cor3Valor = v; }
+];
+const lerCor = [() => cor1Valor, () => cor2Valor, () => cor3Valor];
+
+function criarPicker(seletor) {
   return Pickr.create({
     el: seletor,
     theme: "classic",
-    default: corInicial,
+    default: "#cccccc", // cinza neutro: só a aparência inicial, ainda NÃO conta como escolhida
     swatches: [], // sem cores prontas: vai direto pro seletor livre
     components: {
       preview: true,
@@ -32,25 +40,35 @@ function criarPicker(seletor, corInicial) {
   });
 }
 
-const pickerCor1 = criarPicker("#cor1", cor1Valor);
-const pickerCor2 = criarPicker("#cor2", cor2Valor);
-const pickerCor3 = criarPicker("#cor3", cor3Valor);
+// Liga um seletor à variável da cor: o valor acompanha o que a pessoa escolhe,
+// sem depender de ela apertar o ✓.
+function ligarPicker(picker, indice) {
+  picker.on("change", (cor) => {
+    definirCor[indice](cor.toHEXA().toString());
+    validarCores();
+  });
+  picker.on("save", (cor) => {
+    definirCor[indice](cor.toHEXA().toString());
+    picker.hide();
+    validarCores();
+  });
+  // Ao fechar o seletor, o quadradinho passa a mostrar exatamente a cor que vale
+  picker.on("hide", () => {
+    if (lerCor[indice]() && typeof picker.applyColor === "function") {
+      picker.applyColor(true);
+    }
+  });
+}
 
-pickerCor1.on("save", (cor) => {
-  cor1Valor = cor.toHEXA().toString();
-  pickerCor1.hide();
-  validarCores();
-});
-pickerCor2.on("save", (cor) => {
-  cor2Valor = cor.toHEXA().toString();
-  pickerCor2.hide();
-  validarCores();
-});
-pickerCor3.on("save", (cor) => {
-  cor3Valor = cor.toHEXA().toString();
-  pickerCor3.hide();
-  validarCores();
-});
+ligarPicker(criarPicker("#cor1"), 0);
+ligarPicker(criarPicker("#cor2"), 1);
+ligarPicker(criarPicker("#cor3"), 2);
+
+// Aviso embaixo dos quadradinhos de cor
+document.querySelector(".color-group").insertAdjacentHTML(
+  "afterend",
+  '<div id="dicaCores" style="text-align:center; font-size:14px; color:#666; margin:-4px 0 12px;"></div>'
+);
 
 function buscarMusica() {
   const query = searchInput.value.trim();
@@ -131,12 +149,26 @@ searchInput.addEventListener("keydown", (e) => {
 
 // Validação das cores
 function validarCores() {
-  if (cor1Valor && cor2Valor && cor3Valor && cor1Valor !== cor2Valor && cor1Valor !== cor3Valor && cor2Valor !== cor3Valor && selectedVideo) {
-    submitBtn.disabled = false;
-  } else {
-    submitBtn.disabled = true;
+  const cores = [cor1Valor, cor2Valor, cor3Valor];
+  const faltam = cores.filter((c) => !c).length;
+  const repetidas = new Set(cores.filter(Boolean)).size !== cores.filter(Boolean).length;
+
+  const dica = document.getElementById("dicaCores");
+  if (dica) {
+    if (faltam > 0) {
+      dica.innerText = faltam === 3
+        ? "Toque em cada quadrado cinza para escolher uma cor."
+        : "Faltam " + faltam + " cor(es) para escolher.";
+    } else if (repetidas) {
+      dica.innerText = "As 3 cores precisam ser diferentes.";
+    } else {
+      dica.innerText = "";
+    }
   }
+
+  submitBtn.disabled = !(faltam === 0 && !repetidas && selectedVideo);
 }
+validarCores();
 
 // Submissão
 submitBtn.addEventListener("click", () => {
