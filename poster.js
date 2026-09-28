@@ -40,6 +40,27 @@ function gaussiana(rand) {
   return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
 }
 
+// Converte "#rrggbb" (ou "#rgb") em [r, g, b]
+function corParaRgb(hex) {
+  let h = String(hex).replace("#", "");
+  if (h.length === 3) h = h.split("").map((c) => c + c).join("");
+  return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+}
+
+// Preto puro some em cima do fundo preto (e branco puro em cima do fundo branco).
+// Só na imagem, clareamos/escurecemos o mínimo pra nuvem continuar visível;
+// a cor salva no banco continua exatamente a que a pessoa escolheu.
+function ajustarParaFundo(cor, claro) {
+  const [r, g, b] = corParaRgb(cor);
+  if (!claro && Math.max(r, g, b) < 46) {
+    return `rgb(${Math.max(r, 46)},${Math.max(g, 46)},${Math.max(b, 46)})`;
+  }
+  if (claro && Math.min(r, g, b) > 209) {
+    return `rgb(${Math.min(r, 209)},${Math.min(g, 209)},${Math.min(b, 209)})`;
+  }
+  return cor;
+}
+
 function desenharNebulosa(ctx, cores, rand, fundo) {
   const claro = fundo === "branco";
 
@@ -62,7 +83,7 @@ function desenharNebulosa(ctx, cores, rand, fundo) {
     const { x: ax, y: ay } = ancoras[i];
     const sigmaX = POSTER_W * (0.27 + rand() * 0.06);
     const sigmaY = POSTER_H * (0.17 + rand() * 0.05);
-    ctx.fillStyle = cor;
+    ctx.fillStyle = ajustarParaFundo(cor, claro);
 
     for (let n = 0; n < PONTOS_POR_COR; n++) {
       const x = ax + gaussiana(rand) * sigmaX;
@@ -225,8 +246,10 @@ function renderizarPoster() {
 
 function atualizarBotoesFundo() {
   const fundo = posterEstado ? posterEstado.fundo : "preto";
-  document.getElementById("fundoPretoBtn").classList.toggle("ativo", fundo === "preto");
-  document.getElementById("fundoBrancoBtn").classList.toggle("ativo", fundo === "branco");
+  const pretoBtn = document.getElementById("fundoPretoBtn");
+  const brancoBtn = document.getElementById("fundoBrancoBtn");
+  if (pretoBtn) pretoBtn.classList.toggle("ativo", fundo === "preto");
+  if (brancoBtn) brancoBtn.classList.toggle("ativo", fundo === "branco");
 }
 
 function trocarFundo(fundo) {
@@ -268,6 +291,13 @@ function baixarPoster() {
 async function mostrarPoster({ videoId, titulo, canal, cores }) {
   const area = document.getElementById("posterArea");
   const baixarBtn = document.getElementById("baixarBtn");
+  const pretoBtn = document.getElementById("fundoPretoBtn");
+  const brancoBtn = document.getElementById("fundoBrancoBtn");
+
+  if (!area || !document.getElementById("posterCanvas")) {
+    console.error("Pôster: faltou o bloco #posterArea/#posterCanvas no index.html. Suba o index.html mais recente.");
+    return;
+  }
 
   const capa = await carregarImagem(`https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`);
 
@@ -279,8 +309,10 @@ async function mostrarPoster({ videoId, titulo, canal, cores }) {
   atualizarBotoesFundo();
 
   area.style.display = "block";
-  baixarBtn.style.display = capa && capa.limpo ? "block" : "none";
-  baixarBtn.onclick = baixarPoster;
-  document.getElementById("fundoPretoBtn").onclick = () => trocarFundo("preto");
-  document.getElementById("fundoBrancoBtn").onclick = () => trocarFundo("branco");
+  if (baixarBtn) {
+    baixarBtn.style.display = capa && capa.limpo ? "block" : "none";
+    baixarBtn.onclick = baixarPoster;
+  }
+  if (pretoBtn) pretoBtn.onclick = () => trocarFundo("preto");
+  if (brancoBtn) brancoBtn.onclick = () => trocarFundo("branco");
 }
