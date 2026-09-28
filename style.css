@@ -100,3 +100,34 @@ button.loading {
   background: #e0ffe0;
   border: 2px solid #4CAF50;
 }
+
+#posterArea {
+  display: none;
+  margin-top: 24px;
+}
+
+#posterCanvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.fundo-opcoes {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.fundo-opcoes button {
+  flex: 1;
+  width: auto;
+  background: #e0e0e0;
+  color: #333;
+}
+
+.fundo-opcoes button.ativo {
+  background: #4CAF50;
+  color: white;
+}
