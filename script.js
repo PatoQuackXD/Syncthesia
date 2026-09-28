@@ -6,6 +6,7 @@ const confirmacao = document.getElementById("confirmacao");
 
 let selectedVideo = null;
 let selectedTitle = null;
+let selectedChannel = null;
 
 // Valores das 3 cores escolhidas (preenchidos pelos callbacks do Pickr)
 let cor1Valor = "#ff0000";
@@ -80,6 +81,7 @@ function buscarMusica() {
       data.items.forEach(item => {
         const videoId = item.id.videoId;
         const title = item.snippet.title;
+        const channel = item.snippet.channelTitle;
         const thumbnail = item.snippet.thumbnails.default.url;
 
         const div = document.createElement("div");
@@ -95,6 +97,7 @@ function buscarMusica() {
         div.querySelector(".video-title").addEventListener("click", () => {
           selectedVideo = videoId;
           selectedTitle = title;
+          selectedChannel = channel;
           resultsDiv.innerHTML = `
             <div class="video selected">
               <img src="${thumbnail}" alt="thumb">
@@ -167,6 +170,14 @@ submitBtn.addEventListener("click", () => {
   .then(data => {
     console.log("Resposta JSON:", data);
     confirmacao.innerText = data.mensagem;
+    if (data.status === "ok") {
+      mostrarPoster({
+        videoId: selectedVideo,
+        titulo: selectedTitle,
+        canal: selectedChannel,
+        cores: [cor1, cor2, cor3]
+      });
+    }
   })
   .catch(err => {
     console.error("Erro no fetch:", err);
