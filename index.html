@@ -24,9 +24,19 @@
 
     <button id="submitBtn" disabled>Submeter</button>
     <div id="confirmacao"></div>
+
+    <div id="posterArea">
+      <div class="fundo-opcoes">
+        <button id="fundoPretoBtn" type="button" class="ativo">Fundo preto</button>
+        <button id="fundoBrancoBtn" type="button">Fundo branco</button>
+      </div>
+      <canvas id="posterCanvas" width="1080" height="1350"></canvas>
+      <button id="baixarBtn" type="button">Baixar imagem (JPG)</button>
+    </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@simonwep/pickr/dist/pickr.min.js"></script>
+  <script src="poster.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
