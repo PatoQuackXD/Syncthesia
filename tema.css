@@ -1,0 +1,79 @@
+/* =====================================================================
+   Syncthesia — estilo base (mobile primeiro)
+   Cores tiradas do protótipo do Canva. Fontes: coloque os arquivos das suas
+   fontes na pasta "fonts/" se tiver licença (veja o LEIA-ME); sem eles o site
+   usa fontes gratuitas parecidas (Space Grotesk e Syne).
+   ===================================================================== */
+@font-face{font-family:"Neue Machina";src:local("Neue Machina"),url("fonts/NeueMachina-Regular.woff2") format("woff2");font-weight:400;font-display:swap}
+@font-face{font-family:"Neue Machina";src:local("Neue Machina Ultrabold"),url("fonts/NeueMachina-Ultrabold.woff2") format("woff2");font-weight:800;font-display:swap}
+@font-face{font-family:"Poltik";src:local("Poltik"),url("fonts/Poltik.woff2") format("woff2");font-display:swap}
+
+:root{
+  color-scheme:light;
+  --fundo:#FEFFE0; --card:#F2F1EF; --branco:#FFFFFF; --painel:#C8D1DA;
+  --amarelo:#F1D005; --amarelo-botao:#FBCA41; --amarelo-hit:#FFBC01;
+  --vermelho:#FE1A1B; --azul:#5170FF; --verde:#74DC47; --cinza:#787878; --texto:#000;
+  --fonte-texto:"Neue Machina","Space Grotesk",system-ui,sans-serif;
+  --fonte-logo:"Poltik","Syne","Space Grotesk",sans-serif;
+}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--fundo);color:var(--texto);font-family:var(--fonte-texto);font-size:1rem;line-height:1.35;
+  padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px)}
+.app{max-width:480px;margin:0 auto;padding:20px 20px 40px;min-height:100vh}
+[hidden]{display:none!important}
+
+/* Marca e títulos */
+.logo{font-family:var(--fonte-logo);font-weight:800;font-size:2.1rem;text-align:center;margin:8px 0 22px;letter-spacing:.01em}
+.titulo{font-weight:800;font-size:1.9rem;text-transform:uppercase;margin:0 0 16px;letter-spacing:.01em}
+.sub{margin:-6px 0 16px;color:#333}
+
+/* Cartão azul-acinzentado (igual ao painel da nota) com campos cinza claros dentro */
+.painel{background:var(--painel);border-radius:28px;padding:20px}
+.campo{display:block;width:100%;border:0;border-radius:999px;background:var(--card);color:var(--texto);
+  font:inherit;padding:15px 20px;margin:0 0 12px;outline:none}
+textarea.campo{border-radius:24px;min-height:110px;resize:vertical}
+.campo:focus-visible{box-shadow:0 0 0 3px var(--texto)}
+.campo::placeholder{color:#6d6d6d}
+.rotulo{display:block;font-weight:800;font-size:.8rem;text-transform:uppercase;margin:6px 6px 6px}
+.dica{font-size:.8rem;color:#333;margin:-6px 6px 12px}
+
+/* Botões */
+.botao{display:block;width:100%;border:0;border-radius:999px;background:var(--verde);color:var(--texto);
+  font:inherit;font-weight:800;text-transform:uppercase;padding:15px 20px;cursor:pointer;margin-top:6px}
+.botao:disabled{opacity:.55;cursor:wait}
+.botao.amarelo{background:var(--amarelo-botao)}
+.botao.cinza{background:var(--painel)}
+.link{background:none;border:0;font:inherit;font-weight:800;color:var(--texto);cursor:pointer;padding:12px;display:block;margin:6px auto 0;text-align:center}
+.link u{text-underline-offset:3px}
+
+/* Marcação "eu tenho 18 anos" */
+.marcar{display:flex;gap:10px;align-items:flex-start;margin:6px 4px 14px;font-size:.9rem}
+.marcar input{width:22px;height:22px;accent-color:var(--texto);flex:none;margin:0}
+
+/* Mensagens */
+.msg{border-radius:18px;padding:12px 16px;margin:0 0 12px;font-size:.9rem;font-weight:700}
+.msg.erro{background:var(--vermelho);color:#fff}
+.msg.ok{background:var(--verde);color:var(--texto)}
+.demo{background:var(--texto);color:var(--fundo);font-size:.75rem;text-align:center;padding:6px 10px}
+
+/* Ícones do protótipo (recoloríveis: pegam a cor do texto) */
+.icone{display:inline-block;width:1.3em;height:1.3em;vertical-align:middle;background:currentColor;
+  -webkit-mask:var(--src) center/contain no-repeat;mask:var(--src) center/contain no-repeat}
+.i-estrela{--src:url("icones/estrela.png")} .i-discordar{--src:url("icones/discordar.png")}
+.i-comentario{--src:url("icones/comentario.png")} .i-voltar{--src:url("icones/voltar.png")}
+.voltar{background:none;border:0;padding:6px 0;margin:-6px 0 6px;cursor:pointer;color:var(--texto);font-size:1.7rem}
+
+/* Perfil: banner + foto redonda */
+.capa{position:relative;margin:0 -20px 56px}
+.banner{height:150px;background:var(--painel) center/cover no-repeat;border-radius:0 0 28px 28px}
+.foto{position:absolute;left:50%;bottom:-48px;transform:translateX(-50%);width:100px;height:100px;border-radius:50%;
+  background:var(--texto) center/cover no-repeat;border:4px solid var(--fundo);display:grid;place-items:center;color:var(--fundo);font-size:2.2rem;font-weight:800}
+.arquivo{display:flex;gap:10px;margin-bottom:12px}
+.arquivo label{flex:1;text-align:center;font-weight:800;font-size:.8rem;text-transform:uppercase;background:var(--card);border-radius:999px;padding:12px;cursor:pointer}
+.arquivo input{display:none}
+
+/* Início (provisório) */
+.eu{display:flex;align-items:center;gap:12px;background:var(--card);border-radius:999px;padding:8px 18px 8px 8px;margin:0 0 18px}
+.eu .foto{position:static;transform:none;width:48px;height:48px;border-width:0;font-size:1.2rem;flex:none}
+.eu b{display:block}.eu span{font-size:.8rem;color:#444}
