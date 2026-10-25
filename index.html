@@ -8,11 +8,23 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Syne:wght@800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@simonwep/pickr@1.9.1/dist/themes/classic.min.css">
 <link rel="stylesheet" href="tema.css">
 </head>
 <body>
 <div id="aviso-demo" class="demo" hidden>Modo demonstração: nada é salvo de verdade (falta preencher o config.js)</div>
 <main class="app">
+
+  <!-- Cabeçalho das telas de dentro (o "FEED ⌄" do protótipo) -->
+  <header id="topo" hidden>
+    <button class="topo-titulo" id="topo-titulo" type="button" aria-haspopup="true" aria-expanded="false"><span id="topo-nome">FEED</span> ⌄</button>
+    <span class="topo-logo">Syncthesia</span>
+    <nav id="menu" hidden>
+      <button type="button" data-ir="inicio">Feed</button>
+      <button type="button" data-ir="adicionar">Adicionar avaliação</button>
+      <button type="button" id="menu-sair">Sair</button>
+    </nav>
+  </header>
 
   <!-- ENTRAR -->
   <section id="tela-entrar" hidden>
@@ -65,15 +77,40 @@
 
   <!-- INÍCIO (provisório até o feed ficar pronto) -->
   <section id="tela-inicio" hidden>
-    <div class="logo">Syncthesia</div>
+    <div class="msg ok" id="aviso-inicio" hidden></div>
     <div class="eu"><div class="foto" id="eu-foto">?</div><div><b id="eu-nome"></b><span id="eu-bio"></span></div></div>
-    <h1 class="titulo">Feed</h1>
-    <div class="painel"><p style="margin:0">Você está dentro. O feed com as avaliações é o próximo passo.</p></div>
-    <button class="botao cinza" id="sair" type="button" style="margin-top:18px">Sair</button>
+    <div class="painel"><p style="margin:0 0 12px">Você está dentro. O feed com as avaliações é o próximo passo.</p>
+      <button class="botao amarelo" id="ir-adicionar" type="button" style="margin:0">Adicionar avaliação</button></div>
+  </section>
+
+  <!-- ADICIONAR AVALIAÇÃO -->
+  <section id="tela-adicionar" hidden>
+    <div class="busca">
+      <input class="campo" id="busca-q" placeholder="Busque a música" maxlength="100" autocomplete="off">
+      <button type="button" id="busca-ir" aria-label="Buscar"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg></button>
+    </div>
+    <div class="dica" id="busca-aviso" hidden></div>
+    <div id="resultados"></div>
+
+    <h2 class="subtitulo">Escolha 3 cores diferentes:</h2>
+    <div class="cores"><div id="cor-a"></div><div id="cor-b"></div><div id="cor-c"></div></div>
+    <div class="dica" id="dica-cores"></div>
+
+    <div class="painel nota">
+      <div class="estrelas" id="estrelas" role="slider" tabindex="0" aria-label="Nota" aria-valuemin="0" aria-valuemax="5" aria-valuestep="0.5" aria-valuenow="0"></div>
+      <div class="nota-valor" id="nota-valor"></div>
+      <textarea class="campo" id="critica" maxlength="2000" placeholder="Opiniões sobre a música? (opcional)"></textarea>
+    </div>
+
+    <div class="msg erro" id="erro-adicionar" hidden></div>
+    <div class="dica" id="dica-envio" style="text-align:center"></div>
+    <button class="botao" id="enviar-av" type="button" disabled>Submeter</button>
+    <button class="link" id="cancelar-av" type="button">ou <u>Cancelar</u></button>
   </section>
 
 </main>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@simonwep/pickr@1.9.1/dist/pickr.min.js"></script>
 <script src="config.js"></script>
 <script src="app.js"></script>
 </body>
