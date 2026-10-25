@@ -77,3 +77,40 @@ textarea.campo{border-radius:24px;min-height:110px;resize:vertical}
 .eu{display:flex;align-items:center;gap:12px;background:var(--card);border-radius:999px;padding:8px 18px 8px 8px;margin:0 0 18px}
 .eu .foto{position:static;transform:none;width:48px;height:48px;border-width:0;font-size:1.2rem;flex:none}
 .eu b{display:block}.eu span{font-size:.8rem;color:#444}
+
+/* ---------- Cabeçalho e menu ---------- */
+#topo{display:flex;align-items:center;justify-content:space-between;position:relative;margin:0 0 18px}
+.topo-titulo{background:none;border:0;font:inherit;font-weight:800;font-size:1.7rem;text-transform:uppercase;cursor:pointer;padding:6px 0;color:var(--texto)}
+.topo-logo{font-family:var(--fonte-logo);font-weight:800;font-size:1.35rem}
+#menu{position:absolute;top:100%;left:0;background:var(--branco);border-radius:22px;box-shadow:0 12px 34px #0003;padding:8px;z-index:30;min-width:220px}
+#menu button{display:block;width:100%;text-align:left;background:none;border:0;font:inherit;font-weight:700;padding:13px 14px;border-radius:14px;cursor:pointer;color:var(--texto)}
+#menu button:hover,#menu button:focus-visible{background:var(--card)}
+
+/* ---------- Busca e lista de músicas ---------- */
+.busca{position:relative}
+.busca .campo{padding-right:58px;margin-bottom:10px}
+.busca button{position:absolute;right:8px;top:6px;width:44px;height:44px;border:0;border-radius:50%;background:none;cursor:pointer;color:var(--texto);display:grid;place-items:center}
+.res{display:flex;gap:12px;align-items:center;padding:10px;border-radius:20px;background:var(--branco);margin-bottom:8px;cursor:pointer;border:2px solid transparent}
+.res:hover{border-color:var(--texto)}
+.res.sel{background:#E3F8D8;border-color:var(--verde);cursor:default}
+.capa-mini{width:56px;height:56px;border-radius:12px;background:var(--painel) center/cover no-repeat;flex:none;display:grid;place-items:center;font-size:1.3rem}
+.res .info{flex:1;min-width:0}
+.res b,.res small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.res small{color:#444;font-size:.8rem}
+.selo-e{display:inline-block;background:var(--cinza);color:#fff;font-size:.62rem;font-weight:800;padding:1px 5px;border-radius:4px;margin-left:6px;vertical-align:2px}
+.play{width:44px;height:44px;border-radius:50%;border:0;background:var(--amarelo-botao);color:var(--texto);font-size:.95rem;cursor:pointer;flex:none}
+.trocar{background:none;border:0;font:inherit;font-weight:800;text-decoration:underline;cursor:pointer;margin:0 0 8px 4px;color:var(--texto);padding:6px}
+
+/* ---------- Cores e nota ---------- */
+.subtitulo{font-size:1.1rem;font-weight:800;margin:22px 0 12px}
+.cores{display:flex;justify-content:space-between;align-items:center;margin:0 8px 6px}
+.cores input[type=color]{width:46px;height:46px;border:0;padding:0;background:none;cursor:pointer}
+.painel.nota{margin:14px 0 14px;text-align:center}
+.estrelas{display:inline-flex;gap:6px;--sz:46px;touch-action:pan-y;cursor:pointer;user-select:none;-webkit-user-select:none;outline:none;border-radius:12px}
+.estrelas:focus-visible{box-shadow:0 0 0 3px var(--texto)}
+.star{position:relative;display:inline-block;width:var(--sz);height:var(--sz)}
+.star svg{display:block;width:var(--sz);height:var(--sz);fill:var(--cinza)}
+.star .fill{position:absolute;left:0;top:0;height:100%;overflow:hidden}
+.star .fill svg{fill:var(--amarelo-botao)}
+.nota-valor{font-weight:800;font-size:1.3rem;margin:10px 0 14px}
+.nota-valor small{font-weight:400;font-size:.9rem}
