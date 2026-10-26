@@ -114,3 +114,34 @@ textarea.campo{border-radius:24px;min-height:110px;resize:vertical}
 .star .fill svg{fill:var(--amarelo-botao)}
 .nota-valor{font-weight:800;font-size:1.3rem;margin:10px 0 14px}
 .nota-valor small{font-weight:400;font-size:.9rem}
+
+/* ---------- Feed ---------- */
+.abas{display:flex;gap:8px;margin:0 0 16px}
+.aba{flex:1;border:0;border-radius:999px;background:var(--card);color:var(--texto);font:inherit;font-weight:800;text-transform:uppercase;font-size:.85rem;padding:11px 8px;cursor:pointer}
+.aba[aria-selected=true]{background:var(--texto);color:var(--fundo)}
+.aba-hit[aria-selected=true]{background:var(--amarelo-hit);color:var(--texto)}
+.vazio{text-align:center;margin:30px 10px;font-size:.95rem}
+.item{margin-bottom:18px}
+.tag{display:inline-block;font-weight:800;font-size:.78rem;text-transform:uppercase;border-radius:999px 999px 0 0;padding:7px 14px 5px;margin:0 0 -2px 6px;position:relative;z-index:1;color:var(--texto)}
+.tag.reav{background:var(--verde)} .tag.primeira{background:var(--azul);color:#fff} .tag.hit{background:var(--amarelo-hit)}
+.av{display:flex;gap:12px;background:var(--card);border-radius:28px;padding:16px 16px 12px;position:relative}
+.av .corpo{flex:1;min-width:0}
+.autor{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.avatar{width:42px;height:42px;border-radius:50%;background:var(--texto) center/cover no-repeat;color:var(--fundo);display:grid;place-items:center;font-weight:800;flex:none}
+.autor .nome{color:var(--azul);font-weight:700;font-size:.9rem}
+.av h3{margin:0;font-size:1.05rem;line-height:1.2;overflow-wrap:anywhere}
+.av .sub2{font-size:.78rem;color:#444;margin:2px 0 0}
+.av .texto{margin:10px 0 0;font-size:.95rem;overflow-wrap:anywhere;white-space:pre-wrap}
+.av .estrelas-leitura{display:flex;gap:2px;--sz:22px;margin-top:10px}
+.av .acoes{display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap}
+.pill{display:inline-flex;align-items:center;gap:6px;border:3px solid transparent;border-radius:999px;font:inherit;font-weight:800;padding:5px 12px;cursor:pointer;color:var(--texto);min-height:36px}
+.pill.curtir{background:var(--amarelo)} .pill.discordar{background:var(--vermelho)}
+.pill[aria-pressed=true]{border-color:var(--texto)}
+.pill.ocupado{opacity:.5;pointer-events:none}
+.pill .icone{width:1.1em;height:1.1em}
+.quando{margin-left:auto;font-size:.8rem;color:#333}
+.apagar{background:none;border:0;font:inherit;font-size:.75rem;text-decoration:underline;color:#555;cursor:pointer;padding:6px}
+.halo{width:104px;height:104px;border-radius:28px;flex:none;display:grid;place-items:center;position:relative;align-self:flex-start;background-color:#E9E9EE}
+.halo::after{content:"";position:absolute;inset:0;border-radius:inherit;background-image:radial-gradient(circle,rgba(0,0,0,.16) 1px,transparent 1.3px);background-size:5px 5px;pointer-events:none}
+.halo .capa-g{width:62px;height:62px;border-radius:6px;background:var(--painel) center/cover no-repeat;display:grid;place-items:center;font-size:1.4rem;position:relative;z-index:1}
+#fab-add{position:fixed;right:max(18px,calc(50% - 222px));bottom:calc(20px + env(safe-area-inset-bottom,0px));width:58px;height:58px;border-radius:50%;border:0;background:var(--amarelo-botao);color:var(--texto);font:800 2rem/1 var(--fonte-texto);cursor:pointer;box-shadow:0 8px 22px #0003;z-index:20}
