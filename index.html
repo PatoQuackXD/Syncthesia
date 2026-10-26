@@ -75,12 +75,17 @@
     </form>
   </section>
 
-  <!-- INÍCIO (provisório até o feed ficar pronto) -->
+  <!-- INÍCIO = FEED -->
   <section id="tela-inicio" hidden>
     <div class="msg ok" id="aviso-inicio" hidden></div>
-    <div class="eu"><div class="foto" id="eu-foto">?</div><div><b id="eu-nome"></b><span id="eu-bio"></span></div></div>
-    <div class="painel"><p style="margin:0 0 12px">Você está dentro. O feed com as avaliações é o próximo passo.</p>
-      <button class="botao amarelo" id="ir-adicionar" type="button" style="margin:0">Adicionar avaliação</button></div>
+    <div class="abas" role="tablist" aria-label="Abas do feed">
+      <button class="aba" type="button" role="tab" data-aba="global">Global</button>
+      <button class="aba" type="button" role="tab" data-aba="seguidos">Seguidos</button>
+      <button class="aba aba-hit" type="button" role="tab" data-aba="hit">HIT</button>
+    </div>
+    <div id="feed"></div>
+    <div class="dica vazio" id="feed-aviso" hidden></div>
+    <button class="botao cinza" id="feed-mais" type="button" hidden>Carregar mais</button>
   </section>
 
   <!-- ADICIONAR AVALIAÇÃO -->
@@ -110,6 +115,7 @@
 
 </main>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<button id="fab-add" type="button" aria-label="Adicionar avaliação" hidden>+</button>
 <script src="https://cdn.jsdelivr.net/npm/@simonwep/pickr@1.9.1/dist/pickr.min.js"></script>
 <script src="config.js"></script>
 <script src="app.js"></script>
