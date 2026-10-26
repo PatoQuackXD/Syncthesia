@@ -5,9 +5,20 @@ const $ = (id) => document.getElementById(id);
 const TELAS = ["tela-entrar", "tela-cadastro", "tela-perfil", "tela-inicio", "tela-adicionar"];
 const API_URL = (cfg.API_URL || "https://meu-backend-jf73.onrender.com").replace(/\/$/, "");
 
+// Avaliações de exemplo (modo demonstração): o feed e o "banco" falso usam a mesma lista.
+const AVALIACOES_DEMO = [
+  { id: "d1", musica_id: "seed-1", usuario_id: "x1", autor: { nome_usuario: "lia_discos" }, musica: { titulo: "Walkin' On The Sun", artista: "Smash Mouth", album: "All Stars Smash Hits" },
+    nota: 5, critica: "Se eu pudesse ter uma música tema, seria essa.", cores: ["#E8A33D", "#7BC96F", "#F2E14C"], primeira: false, reavaliacao: true, criado_em: new Date(Date.now() - 3 * 36e5).toISOString(), pontuacao: 31, minha: null },
+  { id: "d2", musica_id: "seed-2", usuario_id: "x2", autor: { nome_usuario: "bruno.vinil" }, musica: { titulo: "Something About Us", artista: "Daft Punk", album: "Discovery" },
+    nota: 4.5, critica: "Na cara, não pra não estragar o funeral.", cores: ["#2B3FA8", "#1F7A4A", "#0B0B1E"], primeira: true, reavaliacao: false, criado_em: new Date(Date.now() - 2 * 864e5).toISOString(), pontuacao: 18, minha: null },
+  { id: "d3", musica_id: "seed-3", usuario_id: "x3", autor: { nome_usuario: "ana_ouve" }, musica: { titulo: "Eu Ouço Vozes", artista: "Artista Exemplo", album: "Álbum Exemplo", explicita: true },
+    nota: 3.5, critica: null, cores: ["#E0208F", "#00B8D9", "#F2C500"], primeira: false, reavaliacao: false, criado_em: new Date(Date.now() - 7 * 864e5).toISOString(), pontuacao: 0, minha: null }
+];
+
 // Sem config preenchido, roda com um "Supabase de mentira" só para ver as telas.
 function clienteDemo() {
-  const usuarios = [], perfis = [], avaliacoes = [], ouvintes = [], arquivos = {};
+  const usuarios = [], perfis = [], ouvintes = [], arquivos = {};
+  const avaliacoes = AVALIACOES_DEMO;
   let sessao = null;
   const emitir = (e) => ouvintes.forEach((f) => f(e, sessao));
   return {
@@ -33,7 +44,11 @@ function clienteDemo() {
         const eu = sessao.user.id, antes = avaliacoes.filter((a) => a.musica_id === l.musica_id);
         const linha = { ...l, id: "demo-a-" + (avaliacoes.length + 1), usuario_id: eu, eh_primeira_da_musica: antes.length === 0,
           eh_reavaliacao: antes.some((a) => a.usuario_id === eu) };
-        avaliacoes.push(linha); return { data: linha, error: null };
+        avaliacoes.unshift({ id: linha.id, musica_id: l.musica_id, usuario_id: eu, autor: null,
+          musica: MUSICAS_DEMO.find((m) => "demo-musica-" + m.deezer_id === l.musica_id) || { titulo: "Música", artista: "", album: "" },
+          nota: l.nota, critica: l.critica, cores: [l.cor1, l.cor2, l.cor3].map((x) => x.toUpperCase()),
+          primeira: linha.eh_primeira_da_musica, reavaliacao: linha.eh_reavaliacao, criado_em: new Date().toISOString(), pontuacao: 0, minha: null });
+        return { data: linha, error: null };
       } }; } }; } };
       return {
         select() { return { eq(_c, id) { return { async maybeSingle() { return { data: perfis.find((p) => p.id === id) || null, error: null }; } }; } }; },
@@ -58,7 +73,9 @@ function mostrar(id) {
   TELAS.forEach((t) => ($(t).hidden = t !== id));
   $("topo").hidden = !NOMES_TELA[id];
   if (NOMES_TELA[id]) $("topo-nome").textContent = NOMES_TELA[id];
+  $("fab-add").hidden = id !== "tela-inicio";
   fecharMenu(); pararPrevia(); window.scrollTo(0, 0);
+  if (id === "tela-inicio") abrirFeed();
 }
 function erro(id, texto) { const e = $(id); e.textContent = texto || ""; e.hidden = !texto; }
 
@@ -92,11 +109,7 @@ async function rotear() {
   if (!sessao) return mostrar("tela-entrar");
   const { data: perfil } = await sb.from("perfis").select("*").eq("id", sessao.user.id).maybeSingle();
   if (!perfil) return mostrar("tela-perfil");
-  $("eu-nome").textContent = "@" + perfil.nome_usuario;
-  $("eu-bio").textContent = perfil.bio || "";
-  const foto = $("eu-foto");
-  foto.style.backgroundImage = perfil.foto_url ? `url("${perfil.foto_url}")` : "";
-  foto.textContent = perfil.foto_url ? "" : perfil.nome_usuario[0].toUpperCase();
+  eu.id = sessao.user.id; eu.perfil = perfil;
   mostrar("tela-inicio");
 }
 
@@ -191,7 +204,6 @@ function ir(destino) {
 }
 document.querySelectorAll("#menu [data-ir]").forEach((b) => (b.onclick = () => ir(b.dataset.ir)));
 $("menu-sair").onclick = async () => { fecharMenu(); await sb.auth.signOut(); };
-$("ir-adicionar").onclick = () => ir("adicionar");
 document.addEventListener("click", (e) => { if (!$("topo").contains(e.target)) fecharMenu(); });
 
 // =====================================================================
@@ -368,6 +380,7 @@ $("enviar-av").onclick = async () => {
     if (error) throw error;
     const aviso = $("aviso-inicio"); aviso.hidden = false;
     aviso.textContent = "Avaliação publicada!" + (data.eh_primeira_da_musica ? " Você foi a primeira pessoa a avaliar esta música (#1)." : "") + (data.eh_reavaliacao ? " Re-avaliação registrada." : "");
+    aba = "global";                              // volta ao feed Global para a pessoa ver a avaliação nova
     mostrar("tela-inicio");
   } catch (e) {
     erro("erro-adicionar", semConexao(e) ? "Não consegui falar com o servidor. Tente de novo em instantes."
@@ -376,6 +389,198 @@ $("enviar-av").onclick = async () => {
     validarAdicionar();
   }
 };
+
+
+// =====================================================================
+// FEED (abas Global, Seguidos e HIT)
+// =====================================================================
+const ABA_PADRAO = "global";            // quando houver bastante gente, troque para "hit"
+const TAM_PAGINA = 20;
+const eu = { id: null, perfil: null };
+const SELECT_AV = "id,nota,critica,cor1,cor2,cor3,eh_reavaliacao,eh_primeira_da_musica,criado_em,usuario_id," +
+  "perfis(nome_usuario,foto_url),musicas(titulo,artista,album,capa_url,explicita)";
+
+// ---- acesso aos dados (no modo demonstração usa a lista de exemplo) ----
+async function completar(linhas) {
+  if (!linhas.length) return [];
+  const ids = linhas.map((l) => l.id);
+  const [pl, re] = await Promise.all([
+    sb.from("avaliacoes_placar").select("avaliacao_id,pontuacao").in("avaliacao_id", ids),
+    sb.from("reacoes").select("avaliacao_id,tipo").in("avaliacao_id", ids)   // só as minhas (regra do banco)
+  ]);
+  const placar = Object.fromEntries((pl.data || []).map((x) => [x.avaliacao_id, x.pontuacao]));
+  const minhas = Object.fromEntries((re.data || []).map((x) => [x.avaliacao_id, x.tipo]));
+  return linhas.map((l) => ({
+    id: l.id, nota: Number(l.nota), critica: l.critica, cores: [l.cor1, l.cor2, l.cor3],
+    reavaliacao: l.eh_reavaliacao, primeira: l.eh_primeira_da_musica, criado_em: l.criado_em, usuario_id: l.usuario_id,
+    autor: l.perfis || {}, musica: l.musicas || {}, pontuacao: placar[l.id] || 0, minha: minhas[l.id] || null
+  }));
+}
+const dados = DEMO ? {
+  async global(antes) { const lista = AVALIACOES_DEMO.filter((a) => !antes || a.criado_em < antes).map((a) => ({ ...a, autor: a.autor || eu.perfil })); return { itens: lista.slice(0, TAM_PAGINA), mais: false }; },
+  async seguidos() { return { itens: [], mais: false }; },
+  async hit() { return { itens: AVALIACOES_DEMO.filter((a) => a.pontuacao > 0).sort((a, b) => b.pontuacao - a.pontuacao).map((a) => ({ ...a, autor: a.autor || eu.perfil, hit: true })), mais: false }; },
+  async reagir(av, tipo) {
+    const original = AVALIACOES_DEMO.find((a) => a.id === av.id), antes = av.minha;
+    const nova = antes === tipo ? null : tipo;
+    const delta = (nova === "curtir" ? 1 : nova === "discordar" ? -1 : 0) - (antes === "curtir" ? 1 : antes === "discordar" ? -1 : 0);
+    original.pontuacao = Math.max(0, original.pontuacao + delta); original.minha = nova;
+    return { minha: nova, pontuacao: original.pontuacao };
+  },
+  async apagar(id) { AVALIACOES_DEMO.splice(AVALIACOES_DEMO.findIndex((a) => a.id === id), 1); }
+} : {
+  async global(antes) {
+    let q = sb.from("avaliacoes").select(SELECT_AV).order("criado_em", { ascending: false }).limit(TAM_PAGINA);
+    if (antes) q = q.lt("criado_em", antes);
+    const { data, error } = await q; if (error) throw error;
+    return { itens: await completar(data), mais: data.length === TAM_PAGINA };
+  },
+  async seguidos(antes) {
+    const { data: seg, error } = await sb.rpc("feed_seguidos", { p_limite: TAM_PAGINA, p_antes: antes || null });
+    if (error) throw error;
+    if (!seg.length) return { itens: [], mais: false };
+    const { data, error: e2 } = await sb.from("avaliacoes").select(SELECT_AV).in("id", seg.map((x) => x.id)).order("criado_em", { ascending: false });
+    if (e2) throw e2;
+    return { itens: await completar(data), mais: seg.length === TAM_PAGINA };
+  },
+  async hit() {
+    const { data: h, error } = await sb.rpc("hit", { p_limite: 50 });
+    if (error) throw error;
+    if (!h.length) return { itens: [], mais: false };
+    const { data, error: e2 } = await sb.from("avaliacoes").select(SELECT_AV).in("id", h.map((x) => x.avaliacao_id));
+    if (e2) throw e2;
+    const ordem = Object.fromEntries(h.map((x, i) => [x.avaliacao_id, i]));
+    const itens = (await completar(data)).sort((a, b) => ordem[a.id] - ordem[b.id]);
+    itens.forEach((a) => { a.hit = true; });
+    return { itens, mais: false };
+  },
+  async reagir(av, tipo) {                       // clicar de novo no mesmo botão tira a reação
+    const r = av.minha === tipo
+      ? await sb.rpc("remover_reacao", { p_avaliacao_id: av.id })
+      : await sb.rpc("reagir", { p_tipo: tipo, p_avaliacao_id: av.id });
+    if (r.error) throw r.error;
+    const { data } = await sb.from("avaliacoes_placar").select("pontuacao").eq("avaliacao_id", av.id).maybeSingle();
+    return { minha: av.minha === tipo ? null : tipo, pontuacao: data ? data.pontuacao : 0 };
+  },
+  async apagar(id) { const { error } = await sb.from("avaliacoes").delete().eq("id", id); if (error) throw error; }
+};
+
+// ---- desenho do cartão ----
+function tempoRelativo(iso) {
+  const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 60) return "agora";
+  if (s < 3600) return Math.floor(s / 60) + "min";
+  if (s < 86400) return Math.floor(s / 3600) + "h";
+  if (s < 7 * 86400) return Math.floor(s / 86400) + " d";
+  if (s < 30 * 86400) return Math.floor(s / (7 * 86400)) + " sem";
+  return new Date(iso).toLocaleDateString("pt-BR");
+}
+const corOk = (c) => /^#[0-9A-Fa-f]{6}$/.test(c || "") ? c : "#CCCCCC";
+function fundoHalo(cores) {
+  const [a, b, c] = cores.map(corOk);
+  return `radial-gradient(circle at 12% 55%, ${a} 0%, transparent 62%), radial-gradient(circle at 92% 10%, ${b} 0%, transparent 58%), radial-gradient(circle at 80% 100%, ${c} 0%, transparent 58%)`;
+}
+function estrelasLeitura(nota) {
+  const el = document.createElement("div"); el.className = "estrelas-leitura";
+  el.setAttribute("role", "img"); el.setAttribute("aria-label", "Nota " + String(nota).replace(".", ",") + " de 5");
+  for (let i = 0; i < 5; i++) {
+    const f = Math.max(0, Math.min(1, nota - i)), s = document.createElement("span");
+    s.className = "star"; s.innerHTML = ESTRELA + `<span class="fill" style="width:${f * 100}%">${ESTRELA}</span>`; el.append(s);
+  }
+  return el;
+}
+function elemento(tag, classe, texto) { const e = document.createElement(tag); if (classe) e.className = classe; if (texto != null) e.textContent = texto; return e; }
+
+function cartao(av) {
+  const item = elemento("div", "item");
+  const tags = [[av.hit, "hit", "HIT"], [av.primeira, "primeira", "#1 Avaliação"], [av.reavaliacao, "reav", "Re-avaliação"]];
+  tags.filter((t) => t[0]).forEach((t) => item.append(elemento("span", "tag " + t[1], t[2])));
+
+  const caixa = elemento("article", "av"), corpo = elemento("div", "corpo");
+  const autor = elemento("div", "autor"), avatar = elemento("div", "avatar");
+  const nome = (av.autor && av.autor.nome_usuario) || "alguém";
+  if (av.autor && /^https:\/\//.test(av.autor.foto_url || "")) avatar.style.backgroundImage = `url("${av.autor.foto_url}")`; else avatar.textContent = nome[0].toUpperCase();
+  autor.append(avatar, elemento("span", "nome", "@" + nome));
+
+  const m = av.musica || {};
+  const titulo = elemento("h3", "", m.titulo || "Música");
+  if (m.explicita) titulo.append(elemento("span", "selo-e", "E"));
+  corpo.append(autor, titulo, elemento("p", "sub2", [m.artista, m.album].filter(Boolean).join(" – ")));
+  if (av.critica) corpo.append(elemento("p", "texto", av.critica));
+  corpo.append(estrelasLeitura(av.nota));
+
+  const acoes = elemento("div", "acoes");
+  const curtir = elemento("button", "pill curtir"), discordar = elemento("button", "pill discordar");
+  curtir.type = discordar.type = "button";
+  curtir.innerHTML = '<span class="icone i-estrela"></span><span class="n"></span>';
+  discordar.innerHTML = '<span class="icone i-discordar"></span>';
+  curtir.setAttribute("aria-label", "Curtir"); discordar.setAttribute("aria-label", "Discordar");
+  const pintar = () => {
+    curtir.querySelector(".n").textContent = av.pontuacao;
+    curtir.setAttribute("aria-pressed", String(av.minha === "curtir")); discordar.setAttribute("aria-pressed", String(av.minha === "discordar"));
+  };
+  const reagir = async (tipo, botao) => {
+    botao.classList.add("ocupado");
+    try { const r = await dados.reagir(av, tipo); av.minha = r.minha; av.pontuacao = r.pontuacao; pintar(); }
+    catch (e) { console.error(e); avisoFeed("Não foi possível registrar sua reação agora."); }
+    botao.classList.remove("ocupado");
+  };
+  curtir.onclick = () => reagir("curtir", curtir); discordar.onclick = () => reagir("discordar", discordar);
+  pintar();
+  acoes.append(curtir, discordar);
+  if (av.usuario_id === eu.id) {
+    const ap = elemento("button", "apagar", "Apagar"); ap.type = "button";
+    ap.onclick = async () => {
+      if (!confirm("Apagar esta avaliação? Os comentários dela também serão apagados.")) return;
+      try { await dados.apagar(av.id); item.remove(); if (!$("feed").children.length) avisoFeed(VAZIO[aba]); }
+      catch (e) { console.error(e); avisoFeed("Não foi possível apagar agora."); }
+    };
+    acoes.append(ap);
+  }
+  acoes.append(elemento("span", "quando", tempoRelativo(av.criado_em)));
+  corpo.append(acoes);
+
+  const halo = elemento("div", "halo"); halo.style.backgroundImage = fundoHalo(av.cores);
+  const capa = elemento("div", "capa-g");
+  if (/^https:\/\//.test(m.capa_url || "")) capa.style.backgroundImage = `url("${m.capa_url}")`; else capa.textContent = "♪";
+  halo.append(capa);
+  caixa.append(corpo, halo); item.append(caixa);
+  return item;
+}
+
+// ---- abas e carregamento ----
+const VAZIO = {
+  global: "Ainda não há avaliações. Seja o primeiro: toque no + para adicionar a sua.",
+  seguidos: "Nada por aqui ainda: você não segue ninguém, ou quem você segue ainda não avaliou.",
+  hit: "Nenhum destaque nesta janela (de 12h a 12h). Curta uma avaliação para ela aparecer aqui."
+};
+let aba = ABA_PADRAO, cursor = null, carregando = false;
+function avisoFeed(t) { const a = $("feed-aviso"); a.textContent = t; a.hidden = !t; }
+function marcarAbas() { document.querySelectorAll(".aba").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.aba === aba))); }
+async function carregarFeed(reiniciar) {
+  if (carregando) return; carregando = true;
+  const lista = $("feed");
+  if (reiniciar) { lista.textContent = ""; cursor = null; $("feed-mais").hidden = true; }
+  avisoFeed("Carregando...");
+  const minhaAba = aba;
+  try {
+    const { itens, mais } = await dados[minhaAba](cursor);
+    if (minhaAba !== aba) { carregando = false; return; }        // mudou de aba durante o carregamento
+    avisoFeed("");
+    itens.forEach((a) => lista.append(cartao(a)));
+    if (itens.length) cursor = itens[itens.length - 1].criado_em;
+    $("feed-mais").hidden = !mais;
+    if (!lista.children.length) avisoFeed(VAZIO[aba]);
+  } catch (e) {
+    console.error("Erro ao carregar o feed:", e);
+    avisoFeed("Não foi possível carregar o feed agora. Tente de novo." + (e && e.message ? " (" + e.message + ")" : ""));
+  }
+  carregando = false;
+}
+function abrirFeed() { marcarAbas(); carregarFeed(true); }
+document.querySelectorAll(".aba").forEach((b) => (b.onclick = () => { if (b.dataset.aba === aba) return; aba = b.dataset.aba; carregando = false; marcarAbas(); carregarFeed(true); }));
+$("feed-mais").onclick = () => carregarFeed(false);
+$("fab-add").onclick = () => ir("adicionar");
 
 sb.auth.onAuthStateChange((evento) => { if (evento === "SIGNED_OUT") mostrar("tela-entrar"); });
 rotear();
