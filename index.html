@@ -13,6 +13,7 @@
 </head>
 <body>
 <div id="aviso-demo" class="demo" hidden>Modo demonstração: nada é salvo de verdade (falta preencher o config.js)</div>
+<canvas id="neb" hidden aria-hidden="true"></canvas>
 <main class="app">
 
   <!-- Cabeçalho das telas de dentro (o "FEED ⌄" do protótipo) -->
@@ -111,6 +112,29 @@
     <div class="dica" id="dica-envio" style="text-align:center"></div>
     <button class="botao" id="enviar-av" type="button" disabled>Submeter</button>
     <button class="link" id="cancelar-av" type="button">ou <u>Cancelar</u></button>
+  </section>
+
+  <!-- TELA DA AVALIAÇÃO (abre ao clicar num cartão do feed) -->
+  <section id="tela-avaliacao" hidden>
+    <div class="topo-av">
+      <button class="voltar" id="av-voltar" type="button" aria-label="Voltar ao feed"><span class="icone i-voltar"></span></button>
+      <span class="topo-logo">Syncthesia</span><span class="espaco-av"></span>
+    </div>
+    <div class="cartao-av">
+      <div class="capa-av" id="av-capa"></div>
+      <h2 id="av-titulo"></h2>
+      <p class="sub2" id="av-sub"></p>
+      <div id="av-estrelas"></div>
+      <div class="player">
+        <button class="play grande" id="av-play" type="button" aria-label="Tocar prévia de 30 segundos" disabled>▶</button>
+        <div class="barra"><i id="av-prog"></i></div>
+        <span id="av-tempo">0:00 / 0:30</span>
+      </div>
+      <p class="dica" id="av-aviso" style="margin:6px 4px"></p>
+      <div class="cores-av" id="av-cores"></div>
+      <div class="quem"><b id="av-autor"></b><span id="av-quando"></span></div>
+      <p class="texto-av" id="av-critica"></p>
+    </div>
   </section>
 
 </main>
