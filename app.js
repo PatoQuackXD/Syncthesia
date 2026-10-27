@@ -2,7 +2,7 @@
 const cfg = window.SYNC_CONFIG || {};
 const DEMO = !cfg.SUPABASE_URL || cfg.SUPABASE_URL.startsWith("COLE");
 const $ = (id) => document.getElementById(id);
-const TELAS = ["tela-entrar", "tela-cadastro", "tela-perfil", "tela-inicio", "tela-adicionar"];
+const TELAS = ["tela-entrar", "tela-cadastro", "tela-perfil", "tela-inicio", "tela-adicionar", "tela-avaliacao"];
 const API_URL = (cfg.API_URL || "https://meu-backend-jf73.onrender.com").replace(/\/$/, "");
 
 // Avaliações de exemplo (modo demonstração): o feed e o "banco" falso usam a mesma lista.
@@ -68,15 +68,18 @@ function clienteDemo() {
 const sb = DEMO ? clienteDemo() : window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
 if (DEMO) $("aviso-demo").hidden = false;
 
+const TELAS_EXTRA = ["tela-avaliacao"];
 const NOMES_TELA = { "tela-inicio": "FEED", "tela-adicionar": "ADICIONAR" };
 function mostrar(id) {
   TELAS.forEach((t) => ($(t).hidden = t !== id));
   $("topo").hidden = !NOMES_TELA[id];
   if (NOMES_TELA[id]) $("topo-nome").textContent = NOMES_TELA[id];
-  $("fab-add").hidden = id !== "tela-inicio";
-  fecharMenu(); pararPrevia(); window.scrollTo(0, 0);
-  if (id === "tela-inicio") abrirFeed();
+  $("fab-add").hidden = id !== "tela-inicio"; $("neb").hidden = id !== "tela-avaliacao";
+  fecharMenu(); pararPrevia(); pararPlayerAv(); window.scrollTo(0, 0);
+  if (id === "tela-inicio" && !manterFeed) abrirFeed();
+  manterFeed = false;
 }
+let manterFeed = false;
 function erro(id, texto) { const e = $(id); e.textContent = texto || ""; e.hidden = !texto; }
 
 // Traduz as mensagens do Supabase para o português.
@@ -218,6 +221,7 @@ async function chamarApi(caminho, opc = {}) {
   if (DEMO) {                                   // sem servidor: respostas de mentira
     if (caminho.startsWith("/api/buscar")) return { resultados: MUSICAS_DEMO };
     if (caminho === "/api/musicas") return { musica: { id: "demo-musica-" + opc.body.deezer_id } };
+    if (/\/previa$/.test(caminho)) return { previa_url: "demo" };
   }
   const { data } = await sb.auth.getSession();
   const token = data.session && data.session.access_token;
@@ -397,7 +401,7 @@ $("enviar-av").onclick = async () => {
 const ABA_PADRAO = "global";            // quando houver bastante gente, troque para "hit"
 const TAM_PAGINA = 20;
 const eu = { id: null, perfil: null };
-const SELECT_AV = "id,nota,critica,cor1,cor2,cor3,eh_reavaliacao,eh_primeira_da_musica,criado_em,usuario_id," +
+const SELECT_AV = "id,musica_id,nota,critica,cor1,cor2,cor3,eh_reavaliacao,eh_primeira_da_musica,criado_em,usuario_id," +
   "perfis(nome_usuario,foto_url),musicas(titulo,artista,album,capa_url,explicita)";
 
 // ---- acesso aos dados (no modo demonstração usa a lista de exemplo) ----
@@ -411,7 +415,7 @@ async function completar(linhas) {
   const placar = Object.fromEntries((pl.data || []).map((x) => [x.avaliacao_id, x.pontuacao]));
   const minhas = Object.fromEntries((re.data || []).map((x) => [x.avaliacao_id, x.tipo]));
   return linhas.map((l) => ({
-    id: l.id, nota: Number(l.nota), critica: l.critica, cores: [l.cor1, l.cor2, l.cor3],
+    id: l.id, musica_id: l.musica_id, nota: Number(l.nota), critica: l.critica, cores: [l.cor1, l.cor2, l.cor3],
     reavaliacao: l.eh_reavaliacao, primeira: l.eh_primeira_da_musica, criado_em: l.criado_em, usuario_id: l.usuario_id,
     autor: l.perfis || {}, musica: l.musicas || {}, pontuacao: placar[l.id] || 0, minha: minhas[l.id] || null
   }));
@@ -503,7 +507,7 @@ function cartao(av) {
   autor.append(avatar, elemento("span", "nome", "@" + nome));
 
   const m = av.musica || {};
-  const titulo = elemento("h3", "", m.titulo || "Música");
+  const titulo = elemento("h3"), abrir = elemento("button", "abrir", m.titulo || "Música"); abrir.type = "button"; titulo.append(abrir);
   if (m.explicita) titulo.append(elemento("span", "selo-e", "E"));
   corpo.append(autor, titulo, elemento("p", "sub2", [m.artista, m.album].filter(Boolean).join(" – ")));
   if (av.critica) corpo.append(elemento("p", "texto", av.critica));
@@ -545,6 +549,7 @@ function cartao(av) {
   if (/^https:\/\//.test(m.capa_url || "")) capa.style.backgroundImage = `url("${m.capa_url}")`; else capa.textContent = "♪";
   halo.append(capa);
   caixa.append(corpo, halo); item.append(caixa);
+  caixa.onclick = (ev) => { if (!ev.target.closest(".pill, .apagar")) abrirAvaliacao(av); };
   return item;
 }
 
@@ -581,6 +586,111 @@ function abrirFeed() { marcarAbas(); carregarFeed(true); }
 document.querySelectorAll(".aba").forEach((b) => (b.onclick = () => { if (b.dataset.aba === aba) return; aba = b.dataset.aba; carregando = false; marcarAbas(); carregarFeed(true); }));
 $("feed-mais").onclick = () => carregarFeed(false);
 $("fab-add").onclick = () => ir("adicionar");
+
+
+// =====================================================================
+// TELA DA AVALIAÇÃO (nebulosa grande + capa + prévia de 30 s)
+// =====================================================================
+function semente(texto) {
+  let h = 1779033703 ^ texto.length;
+  for (let i = 0; i < texto.length; i++) { h = Math.imul(h ^ texto.charCodeAt(i), 3432918353); h = (h << 13) | (h >>> 19); }
+  return h >>> 0;
+}
+const aleatorio = (a) => () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+const gaussiana = (r) => { let u = 0; while (!u) u = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(6.2832 * r()); };
+
+// Nebulosa de pontos nas 3 cores da avaliação. A mesma avaliação sempre gera o mesmo desenho.
+function desenharNebulosa(cores, chave) {
+  const cv = $("neb"), d = Math.min(window.devicePixelRatio || 1, 2);
+  const w = (cv.width = Math.round(innerWidth * d)), h = (cv.height = Math.round(innerHeight * d));
+  const x = cv.getContext("2d"), r = aleatorio(semente(chave));
+  x.fillStyle = "#000"; x.fillRect(0, 0, w, h); x.globalCompositeOperation = "lighter";
+  const n = Math.min(60000, (w * h / (1080 * 1350)) * 45000), ancoras = [[0.05, 0.12], [1.02, 0.4], [0.1, 0.97]];
+  // Preto (ou quase) some em cima do fundo preto: na imagem ele é clareado o mínimo para a nuvem aparecer.
+  // A cor guardada no banco continua exatamente a escolhida.
+  const clarear = (hex) => { const v = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+    return Math.max(...v) < 46 ? `rgb(${v.map((c) => Math.max(c, 46)).join(",")})` : hex; };
+  cores.map(corOk).forEach((cor, i) => {
+    x.fillStyle = clarear(cor);
+    for (let k = 0; k < n; k++) {
+      const px = ancoras[i][0] * w + gaussiana(r) * w * 0.3, py = ancoras[i][1] * h + gaussiana(r) * h * 0.2;
+      if (px < 0 || px > w || py < 0 || py > h) continue;
+      x.globalAlpha = 0.55 + r() * 0.45; const t = (2 + r() * 1.6) * d * 0.8; x.fillRect(px, py, t, t);
+    }
+  });
+  x.globalAlpha = 1; x.globalCompositeOperation = "source-over";
+}
+addEventListener("resize", () => { if (!$("tela-avaliacao").hidden && pl.av) desenharNebulosa(pl.av.cores, pl.av.id); });
+
+// ---- player da prévia ----
+const pl = { av: null, url: null, audio: null, timer: null, tentou: false, versao: 0 };
+const mmss = (s) => "0:" + String(Math.floor(s || 0)).padStart(2, "0");
+const avisoPlayer = (t) => { $("av-aviso").textContent = t || ""; };
+function audioDemo() {                          // modo demonstração: simula 30 s sem som
+  const a = { currentTime: 0, duration: 30, ended: false, paused: true, onended: null, _t: null,
+    play() { a.paused = false; a._t = setInterval(() => { a.currentTime += 0.25; if (a.currentTime >= 30) { a.currentTime = 30; a.ended = true; a.pause(); if (a.onended) a.onended(); } }, 250); return Promise.resolve(); },
+    pause() { a.paused = true; clearInterval(a._t); } };
+  return a;
+}
+function pararPlayerAv() {
+  clearInterval(pl.timer); pl.versao++;
+  if (pl.audio) pl.audio.pause();
+  pl.audio = null; $("av-play").textContent = "▶"; $("av-prog").style.width = "0"; $("av-tempo").textContent = "0:00 / 0:30";
+}
+async function buscarLinkPrevia(versao) {         // o link da prévia expira: sempre se pede um novo ao backend
+  try {
+    const { previa_url } = await chamarApi(`/api/musicas/${pl.av.musica_id}/previa`);
+    if (versao !== pl.versao) return;
+    if (!previa_url || (!DEMO && !/^https:\/\//.test(previa_url))) { pl.url = null; $("av-play").hidden = true; avisoPlayer("Esta música não tem prévia disponível."); return; }
+    pl.url = previa_url; $("av-play").disabled = false; avisoPlayer("");
+  } catch (e) {
+    if (versao !== pl.versao) return;
+    avisoPlayer(semConexao(e) ? "Não consegui falar com o servidor para carregar a prévia." : e.message);
+  }
+}
+function atualizarBarra() {
+  const a = pl.audio; if (!a) return;
+  const dur = a.duration && isFinite(a.duration) ? a.duration : 30;
+  $("av-prog").style.width = Math.min(100, (a.currentTime / dur) * 100) + "%";
+  $("av-tempo").textContent = mmss(a.currentTime) + " / " + mmss(dur);
+}
+function tocarAgora() {                          // roda dentro do clique (o iPhone só deixa tocar assim)
+  const a = DEMO ? audioDemo() : new Audio(pl.url);
+  pl.audio = a; pl.timer = setInterval(atualizarBarra, 200);
+  a.onended = () => { clearInterval(pl.timer); $("av-play").textContent = "▶"; $("av-prog").style.width = "100%"; pl.audio = null; };
+  a.onerror = async () => {                      // link vencido? pede um novo e tenta uma vez
+    if (pl.tentou) { pararPlayerAv(); return avisoPlayer("Não foi possível tocar a prévia."); }
+    pl.tentou = true; pararPlayerAv(); avisoPlayer("Atualizando a prévia...");
+    await buscarLinkPrevia(pl.versao); if (pl.url) { avisoPlayer(""); $("av-play").onclick(); }
+  };
+  const p = a.play(); if (p && p.catch) p.catch(() => a.onerror && a.onerror());
+  $("av-play").textContent = "❚❚";
+}
+$("av-play").onclick = () => {
+  if (!pl.url) return;
+  if (pl.audio && !pl.audio.paused) { pl.audio.pause(); $("av-play").textContent = "▶"; return; }   // pausar
+  if (pl.audio && pl.audio.paused) { pl.audio.play(); $("av-play").textContent = "❚❚"; return; }    // retomar
+  pl.tentou = false; tocarAgora();
+};
+
+// ---- abrir e fechar ----
+let scrollFeed = 0;
+function abrirAvaliacao(av) {
+  scrollFeed = window.scrollY; mostrar("tela-avaliacao");   // (mostrar já para qualquer prévia anterior)
+  pl.av = av; pl.url = null;
+  const m = av.musica || {};
+  const capa = $("av-capa"); capa.textContent = "";
+  if (/^https:\/\//.test(m.capa_url || "")) capa.style.backgroundImage = `url("${m.capa_url}")`; else { capa.style.backgroundImage = ""; capa.textContent = "♪"; }
+  $("av-titulo").textContent = m.titulo || "Música"; $("av-sub").textContent = [m.artista, m.album].filter(Boolean).join(" – ");
+  const est = $("av-estrelas"); est.textContent = ""; est.append(estrelasLeitura(av.nota));
+  $("av-cores").replaceChildren(...av.cores.map((c) => { const s = document.createElement("span"); s.style.background = corOk(c); s.title = corOk(c); return s; }));
+  $("av-autor").textContent = "@" + ((av.autor && av.autor.nome_usuario) || "alguém"); $("av-quando").textContent = tempoRelativo(av.criado_em);
+  $("av-critica").textContent = av.critica || ""; $("av-critica").hidden = !av.critica;
+  const botao = $("av-play"); botao.hidden = false; botao.disabled = true; avisoPlayer("Carregando prévia...");
+  desenharNebulosa(av.cores, av.id);
+  buscarLinkPrevia(pl.versao);
+}
+$("av-voltar").onclick = () => { manterFeed = true; mostrar("tela-inicio"); window.scrollTo(0, scrollFeed); };
 
 sb.auth.onAuthStateChange((evento) => { if (evento === "SIGNED_OUT") mostrar("tela-entrar"); });
 rotear();
