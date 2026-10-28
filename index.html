@@ -23,6 +23,8 @@
     <nav id="menu" hidden>
       <button type="button" data-ir="inicio">Feed</button>
       <button type="button" data-ir="adicionar">Adicionar avaliação</button>
+      <button type="button" data-ir="buscar">Buscar pessoas</button>
+      <button type="button" data-ir="perfil">Meu perfil</button>
       <button type="button" id="menu-sair">Sair</button>
     </nav>
   </header>
@@ -56,7 +58,7 @@
 
   <!-- CRIAR PERFIL (primeiro acesso) -->
   <section id="tela-perfil" hidden>
-    <h1 class="titulo">Seu perfil</h1>
+    <h1 class="titulo" id="perfil-titulo">Seu perfil</h1>
     <div class="capa">
       <div class="banner" id="previa-banner"></div>
       <div class="foto" id="previa-foto">?</div>
@@ -73,6 +75,7 @@
       <label class="rotulo" for="perfil-bio">Bio (opcional)</label>
       <textarea class="campo" id="perfil-bio" maxlength="200" placeholder="Conte um pouco sobre seu gosto musical"></textarea>
       <button class="botao" type="submit">Salvar perfil</button>
+      <button class="link" id="cancelar-perfil" type="button" hidden>ou <u>Cancelar</u></button>
     </form>
   </section>
 
@@ -102,7 +105,8 @@
     <div class="cores"><div id="cor-a"></div><div id="cor-b"></div><div id="cor-c"></div></div>
     <div class="dica" id="dica-cores"></div>
 
-    <div class="painel nota">
+    <label class="marcar" id="bloco-postar" hidden><input type="checkbox" id="postar-tambem"> <span>Também publicar como avaliação no feed</span></label>
+    <div class="painel nota" id="painel-nota">
       <div class="estrelas" id="estrelas" role="slider" tabindex="0" aria-label="Nota" aria-valuemin="0" aria-valuemax="5" aria-valuestep="0.5" aria-valuenow="0"></div>
       <div class="nota-valor" id="nota-valor"></div>
       <textarea class="campo" id="critica" maxlength="2000" placeholder="Opiniões sobre a música? (opcional)"></textarea>
@@ -112,6 +116,45 @@
     <div class="dica" id="dica-envio" style="text-align:center"></div>
     <button class="botao" id="enviar-av" type="button" disabled>Submeter</button>
     <button class="link" id="cancelar-av" type="button">ou <u>Cancelar</u></button>
+  </section>
+
+  <!-- BUSCAR PESSOAS -->
+  <section id="tela-buscar" hidden>
+    <div class="busca">
+      <input class="campo" id="bu-q" placeholder="Buscar pessoas pelo @" maxlength="20" autocomplete="off">
+      <button type="button" id="bu-ir" aria-label="Buscar"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg></button>
+    </div>
+    <h2 class="subtitulo" id="bu-titulo">Pessoas novas</h2>
+    <div id="bu-lista"></div>
+    <div class="dica vazio" id="bu-aviso" hidden></div>
+  </section>
+
+  <!-- PERFIL (o seu e o dos outros) -->
+  <section id="tela-ver-perfil" hidden>
+    <div class="capa tela-cheia">
+      <div class="banner" id="pf-banner"></div>
+      <button class="flut esq" id="pf-voltar" type="button" aria-label="Voltar"><span class="icone i-voltar"></span></button>
+      <button class="flut dir" id="pf-editar" type="button" aria-label="Editar perfil" hidden>✎</button>
+      <div class="tempo-conta" id="pf-tempo"></div>
+      <div class="foto" id="pf-foto"></div>
+    </div>
+    <h1 class="pf-nome" id="pf-nome"></h1>
+    <p class="pf-bio" id="pf-bio"></p>
+    <p class="pf-numeros"><span><b id="pf-seguidores">0</b> seguidores</span><span><b id="pf-seguindo">0</b> seguindo</span></p>
+    <button class="botao amarelo pf-seguir" id="pf-seguir" type="button" hidden>Seguir</button>
+
+    <div class="pref" id="pf-pref" hidden>
+      <b class="pref-rotulo">Música preferida:</b>
+      <div class="pref-corpo"><div class="halo" id="pf-pref-halo"><div class="capa-g" id="pf-pref-capa"></div></div>
+        <div class="pref-texto"><h3 id="pf-pref-titulo"></h3><p id="pf-pref-sub"></p></div></div>
+    </div>
+    <button class="botao cinza" id="pf-definir" type="button" hidden>Definir música preferida</button>
+
+    <label class="ordem">Ordem:
+      <select id="pf-ordem"><option value="recentes">Recentes</option><option value="curtidas">Mais curtidas</option><option value="nota">Maior nota</option></select>
+    </label>
+    <div id="pf-lista"></div>
+    <div class="dica vazio" id="pf-aviso" hidden></div>
   </section>
 
   <!-- TELA DA AVALIAÇÃO (abre ao clicar num cartão do feed) -->
@@ -132,7 +175,7 @@
       </div>
       <p class="dica" id="av-aviso" style="margin:6px 4px"></p>
       <div class="cores-av" id="av-cores"></div>
-      <div class="quem"><b id="av-autor"></b><span id="av-quando"></span></div>
+      <div class="quem"><button class="nick" id="av-autor" type="button"></button><span id="av-quando"></span></div>
       <p class="texto-av" id="av-critica"></p>
     </div>
   </section>
