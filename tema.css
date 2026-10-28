@@ -168,3 +168,36 @@ textarea.campo{border-radius:24px;min-height:110px;resize:vertical}
 .texto-av{margin:8px 4px 4px;font-size:.98rem;overflow-wrap:anywhere;white-space:pre-wrap}
 button.abrir{background:none;border:0;padding:0;margin:0;font:inherit;font-weight:inherit;text-align:left;color:inherit;cursor:pointer;overflow-wrap:anywhere}
 .av{cursor:pointer}
+
+/* ---------- Nick clicável ---------- */
+button.autor{background:none;border:0;padding:0;font:inherit;text-align:left;cursor:pointer;color:inherit;width:100%}
+.autor .nome{text-decoration:none}.autor:hover .nome{text-decoration:underline}
+button.nick{background:none;border:0;padding:0;font:inherit;font-weight:800;color:var(--azul);cursor:pointer}
+button.nick:hover{text-decoration:underline}
+.quem button.nick{font-size:.9rem}
+
+/* ---------- Perfil ---------- */
+.capa.tela-cheia{margin-top:-20px}
+.capa .banner{height:160px}
+.flut{position:absolute;top:calc(14px + env(safe-area-inset-top,0px));width:44px;height:44px;border-radius:50%;border:0;background:#ffffffcc;color:var(--texto);font-size:1.3rem;cursor:pointer;display:grid;place-items:center;z-index:2}
+.flut.esq{left:14px}.flut.dir{right:14px}
+.tempo-conta{position:absolute;left:20px;bottom:-38px;font-size:.95rem}
+.pf-nome{text-align:center;font-size:1.2rem;margin:0 0 6px;overflow-wrap:anywhere}
+.pf-bio{text-align:center;margin:0 0 10px;font-weight:700;overflow-wrap:anywhere;white-space:pre-wrap}
+.pf-numeros{display:flex;justify-content:center;gap:18px;margin:0 0 14px;font-size:.9rem}
+.pf-seguir{max-width:260px;margin:0 auto 20px}
+.pf-seguir.sigo{background:var(--card)}
+.pref{background:var(--branco);border-radius:28px;padding:14px 14px 16px;margin:0 0 14px}
+.pref-rotulo{display:block;font-size:.95rem;margin:0 0 10px 4px}
+.pref-corpo{display:flex;gap:14px;align-items:center}
+.pref .halo{width:120px;height:120px}.pref .halo .capa-g{width:72px;height:72px}
+.pref-texto{min-width:0}.pref-texto h3{margin:0;font-size:1.25rem;line-height:1.15;overflow-wrap:anywhere}
+.pref-texto p{margin:4px 0 0;font-size:.85rem;color:#444}
+.ordem{display:flex;align-items:center;gap:8px;font-weight:800;margin:6px 0 12px;font-size:.9rem}
+.ordem select{font:inherit;font-weight:700;background:var(--card);border:0;border-radius:999px;padding:8px 14px;color:var(--texto)}
+
+/* ---------- Busca de pessoas ---------- */
+.pessoa{display:flex;gap:12px;align-items:center;background:var(--branco);border-radius:20px;padding:10px 12px;margin-bottom:8px;cursor:pointer;border:2px solid transparent;width:100%;text-align:left;font:inherit;color:var(--texto)}
+.pessoa:hover,.pessoa:focus-visible{border-color:var(--texto)}
+.pessoa .info{min-width:0;flex:1}.pessoa b{display:block;color:var(--azul)}
+.pessoa small{display:block;color:#444;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
