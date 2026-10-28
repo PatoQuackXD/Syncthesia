@@ -2,7 +2,7 @@
 const cfg = window.SYNC_CONFIG || {};
 const DEMO = !cfg.SUPABASE_URL || cfg.SUPABASE_URL.startsWith("COLE");
 const $ = (id) => document.getElementById(id);
-const TELAS = ["tela-entrar", "tela-cadastro", "tela-perfil", "tela-inicio", "tela-adicionar", "tela-avaliacao"];
+const TELAS = ["tela-entrar", "tela-cadastro", "tela-perfil", "tela-inicio", "tela-adicionar", "tela-avaliacao", "tela-buscar", "tela-ver-perfil"];
 const API_URL = (cfg.API_URL || "https://meu-backend-jf73.onrender.com").replace(/\/$/, "");
 
 // Avaliações de exemplo (modo demonstração): o feed e o "banco" falso usam a mesma lista.
@@ -14,6 +14,15 @@ const AVALIACOES_DEMO = [
   { id: "d3", musica_id: "seed-3", usuario_id: "x3", autor: { nome_usuario: "ana_ouve" }, musica: { titulo: "Eu Ouço Vozes", artista: "Artista Exemplo", album: "Álbum Exemplo", explicita: true },
     nota: 3.5, critica: null, cores: ["#E0208F", "#00B8D9", "#F2C500"], primeira: false, reavaliacao: false, criado_em: new Date(Date.now() - 7 * 864e5).toISOString(), pontuacao: 0, minha: null }
 ];
+
+const dias = (n) => new Date(Date.now() - n * 864e5).toISOString();
+const PERFIS_DEMO = {
+  x1: { id: "x1", nome_usuario: "lia_discos", bio: "Ouço de tudo, menos silêncio.", foto_url: null, banner_url: null, criado_em: dias(40) },
+  x2: { id: "x2", nome_usuario: "bruno.vinil", bio: "Vinil, pixel e café.", foto_url: null, banner_url: null, criado_em: dias(12) },
+  x3: { id: "x3", nome_usuario: "ana_ouve", bio: null, foto_url: null, banner_url: null, criado_em: dias(2) }
+};
+const SEGUINDO_DEMO = new Set();
+const PREFERIDAS_DEMO = { x1: { musica: { titulo: "Messages From The Stars", artista: "The RAH Band", album: "Going Up" }, cores: ["#8E3BC4", "#E9A0F0", "#C8D1DA"], avaliacao_id: null } };
 
 // Sem config preenchido, roda com um "Supabase de mentira" só para ver as telas.
 function clienteDemo() {
@@ -40,6 +49,15 @@ function clienteDemo() {
       async signOut() { sessao = null; emitir("SIGNED_OUT"); return { error: null }; }
     },
     from(tabela) {
+      if (tabela === "musica_preferida") return { async upsert(l) {
+        PREFERIDAS_DEMO[l.usuario_id] = { musica: MUSICAS_DEMO.find((m) => "demo-musica-" + m.deezer_id === l.musica_id) || { titulo: "Música" },
+          cores: [l.cor1, l.cor2, l.cor3].map((x) => x.toUpperCase()), avaliacao_id: l.avaliacao_id }; return { error: null }; } };
+      if (tabela === "perfis") return { update(c) { return { async eq(_k, id) { Object.assign(perfis.find((p) => p.id === id), c); return { error: null }; } }; },
+        select() { return { eq(_c, id) { return { async maybeSingle() { return { data: perfis.find((p) => p.id === id) || null, error: null }; } }; } }; },
+        async insert(l) {
+          if (perfis.some((p) => p.nome_usuario.toLowerCase() === l.nome_usuario.toLowerCase()) || Object.values(PERFIS_DEMO).some((p) => p.nome_usuario.toLowerCase() === l.nome_usuario.toLowerCase())) return { error: { code: "23505" } };
+          perfis.push({ ...l, criado_em: new Date().toISOString() }); return { error: null };
+        } };
       if (tabela === "avaliacoes") return { insert(l) { return { select() { return { async single() {
         const eu = sessao.user.id, antes = avaliacoes.filter((a) => a.musica_id === l.musica_id);
         const linha = { ...l, id: "demo-a-" + (avaliacoes.length + 1), usuario_id: eu, eh_primeira_da_musica: antes.length === 0,
@@ -54,7 +72,7 @@ function clienteDemo() {
         select() { return { eq(_c, id) { return { async maybeSingle() { return { data: perfis.find((p) => p.id === id) || null, error: null }; } }; } }; },
         async insert(l) {
           if (perfis.some((p) => p.nome_usuario.toLowerCase() === l.nome_usuario.toLowerCase())) return { error: { code: "23505" } };
-          perfis.push(l); return { error: null };
+          perfis.push({ ...l, criado_em: new Date().toISOString() }); return { error: null };
         }
       };
     },
@@ -69,7 +87,7 @@ const sb = DEMO ? clienteDemo() : window.supabase.createClient(cfg.SUPABASE_URL,
 if (DEMO) $("aviso-demo").hidden = false;
 
 const TELAS_EXTRA = ["tela-avaliacao"];
-const NOMES_TELA = { "tela-inicio": "FEED", "tela-adicionar": "ADICIONAR" };
+const NOMES_TELA = { "tela-inicio": "FEED", "tela-adicionar": "ADICIONAR", "tela-buscar": "PESSOAS" };
 function mostrar(id) {
   TELAS.forEach((t) => ($(t).hidden = t !== id));
   $("topo").hidden = !NOMES_TELA[id];
@@ -168,7 +186,8 @@ async function enviarImagem(balde, uid, arquivo, nome) {
   const caminho = `${uid}/${nome}.${ext}`;          // cada pessoa só grava na própria pasta
   const { error } = await sb.storage.from(balde).upload(caminho, arquivo, { upsert: true, contentType: arquivo.type });
   if (error) throw error;
-  return sb.storage.from(balde).getPublicUrl(caminho).data.publicUrl;
+  const url = sb.storage.from(balde).getPublicUrl(caminho).data.publicUrl;
+  return DEMO ? url : url + "?v=" + Date.now();   // evita mostrar a foto antiga guardada no cache
 }
 
 $("form-perfil").onsubmit = async (ev) => {
@@ -202,7 +221,9 @@ $("topo-titulo").onclick = () => {
   $("topo-titulo").setAttribute("aria-expanded", String(abrir));
 };
 function ir(destino) {
-  if (destino === "adicionar") { iniciarAdicionar(); mostrar("tela-adicionar"); }
+  if (destino === "adicionar") { iniciarAdicionar("avaliacao"); mostrar("tela-adicionar"); }
+  else if (destino === "buscar") abrirBuscar();
+  else if (destino === "perfil") abrirPerfil(eu.id);
   else mostrar("tela-inicio");
 }
 document.querySelectorAll("#menu [data-ir]").forEach((b) => (b.onclick = () => ir(b.dataset.ir)));
@@ -355,6 +376,7 @@ $("estrelas").addEventListener("keydown", (e) => {
 
 // --- validação, reinício e envio ---
 const mesmaCor = (a, b) => a.slice(0, 7).toLowerCase() === b.slice(0, 7).toLowerCase();
+const precisaNota = () => add.modo === "avaliacao" || $("postar-tambem").checked;
 function validarAdicionar() {
   const c = add.cores, faltam = c.filter((x) => !x).length;
   const repetida = !faltam && (mesmaCor(c[0], c[1]) || mesmaCor(c[0], c[2]) || mesmaCor(c[1], c[2]));
@@ -362,15 +384,19 @@ function validarAdicionar() {
   let falta = "";
   if (!add.musica) falta = "Escolha uma música.";
   else if (faltam || repetida) falta = "Escolha 3 cores diferentes.";
-  else if (!add.notaTocada) falta = "Dê uma nota.";
+  else if (precisaNota() && !add.notaTocada) falta = "Dê uma nota.";
+  $("painel-nota").hidden = !precisaNota();
   $("dica-envio").textContent = falta; $("enviar-av").disabled = !!falta;
 }
-function iniciarAdicionar() {
-  Object.assign(add, { musica: null, nota: 0, notaTocada: false, cores: [null, null, null] });
+function iniciarAdicionar(modo = "avaliacao") {
+  Object.assign(add, { modo, musica: null, nota: 0, notaTocada: false, cores: [null, null, null] });
+  NOMES_TELA["tela-adicionar"] = modo === "preferida" ? "MÚSICA PREFERIDA" : "ADICIONAR";
+  $("bloco-postar").hidden = modo !== "preferida"; $("postar-tambem").checked = false; $("enviar-av").textContent = modo === "preferida" ? "Salvar" : "Submeter";
   $("busca-q").value = ""; $("resultados").textContent = ""; mostrarAviso(""); $("critica").value = ""; erro("erro-adicionar");
   seletores.forEach((s) => s.zerar()); desenharEstrelas(); validarAdicionar();
 }
-$("cancelar-av").onclick = () => ir("inicio");
+$("cancelar-av").onclick = () => (add.modo === "preferida" ? abrirPerfil(eu.id, true) : ir("inicio"));
+$("postar-tambem").onchange = validarAdicionar;
 
 $("enviar-av").onclick = async () => {
   erro("erro-adicionar"); validarAdicionar(); if ($("enviar-av").disabled) return;
@@ -378,12 +404,20 @@ $("enviar-av").onclick = async () => {
   try {
     const { musica } = await chamarApi("/api/musicas", { method: "POST", body: { deezer_id: add.musica.deezer_id } });
     const [cor1, cor2, cor3] = add.cores;
-    const { data, error } = await sb.from("avaliacoes")
-      .insert({ musica_id: musica.id, nota: add.nota, critica: $("critica").value.trim() || null, cor1, cor2, cor3 })
-      .select().single();
-    if (error) throw error;
+    let avaliacao = null;
+    if (precisaNota()) {
+      const r = await sb.from("avaliacoes")
+        .insert({ musica_id: musica.id, nota: add.nota, critica: $("critica").value.trim() || null, cor1, cor2, cor3 })
+        .select().single();
+      if (r.error) throw r.error; avaliacao = r.data;
+    }
+    if (add.modo === "preferida") {
+      const { error } = await sb.from("musica_preferida").upsert({ usuario_id: eu.id, musica_id: musica.id, cor1, cor2, cor3, avaliacao_id: avaliacao ? avaliacao.id : null });
+      if (error) throw error;
+      return abrirPerfil(eu.id, true);
+    }
     const aviso = $("aviso-inicio"); aviso.hidden = false;
-    aviso.textContent = "Avaliação publicada!" + (data.eh_primeira_da_musica ? " Você foi a primeira pessoa a avaliar esta música (#1)." : "") + (data.eh_reavaliacao ? " Re-avaliação registrada." : "");
+    aviso.textContent = "Avaliação publicada!" + (avaliacao.eh_primeira_da_musica ? " Você foi a primeira pessoa a avaliar esta música (#1)." : "") + (avaliacao.eh_reavaliacao ? " Re-avaliação registrada." : "");
     aba = "global";                              // volta ao feed Global para a pessoa ver a avaliação nova
     mostrar("tela-inicio");
   } catch (e) {
@@ -393,7 +427,6 @@ $("enviar-av").onclick = async () => {
     validarAdicionar();
   }
 };
-
 
 // =====================================================================
 // FEED (abas Global, Seguidos e HIT)
@@ -422,7 +455,7 @@ async function completar(linhas) {
 }
 const dados = DEMO ? {
   async global(antes) { const lista = AVALIACOES_DEMO.filter((a) => !antes || a.criado_em < antes).map((a) => ({ ...a, autor: a.autor || eu.perfil })); return { itens: lista.slice(0, TAM_PAGINA), mais: false }; },
-  async seguidos() { return { itens: [], mais: false }; },
+  async seguidos() { return { itens: AVALIACOES_DEMO.filter((a) => SEGUINDO_DEMO.has(a.usuario_id)).map((a) => ({ ...a, autor: a.autor || PERFIS_DEMO[a.usuario_id] })), mais: false }; },
   async hit() { return { itens: AVALIACOES_DEMO.filter((a) => a.pontuacao > 0).sort((a, b) => b.pontuacao - a.pontuacao).map((a) => ({ ...a, autor: a.autor || eu.perfil, hit: true })), mais: false }; },
   async reagir(av, tipo) {
     const original = AVALIACOES_DEMO.find((a) => a.id === av.id), antes = av.minha;
@@ -495,13 +528,14 @@ function estrelasLeitura(nota) {
 }
 function elemento(tag, classe, texto) { const e = document.createElement(tag); if (classe) e.className = classe; if (texto != null) e.textContent = texto; return e; }
 
-function cartao(av) {
+function cartao(av, opc = {}) {
   const item = elemento("div", "item");
   const tags = [[av.hit, "hit", "HIT"], [av.primeira, "primeira", "#1 Avaliação"], [av.reavaliacao, "reav", "Re-avaliação"]];
   tags.filter((t) => t[0]).forEach((t) => item.append(elemento("span", "tag " + t[1], t[2])));
 
   const caixa = elemento("article", "av"), corpo = elemento("div", "corpo");
-  const autor = elemento("div", "autor"), avatar = elemento("div", "avatar");
+  const autor = elemento("button", "autor"), avatar = elemento("div", "avatar"); autor.type = "button";
+  if (opc.semAutor) autor.style.cursor = "default"; else autor.onclick = () => abrirPerfil(av.usuario_id);
   const nome = (av.autor && av.autor.nome_usuario) || "alguém";
   if (av.autor && /^https:\/\//.test(av.autor.foto_url || "")) avatar.style.backgroundImage = `url("${av.autor.foto_url}")`; else avatar.textContent = nome[0].toUpperCase();
   autor.append(avatar, elemento("span", "nome", "@" + nome));
@@ -549,7 +583,7 @@ function cartao(av) {
   if (/^https:\/\//.test(m.capa_url || "")) capa.style.backgroundImage = `url("${m.capa_url}")`; else capa.textContent = "♪";
   halo.append(capa);
   caixa.append(corpo, halo); item.append(caixa);
-  caixa.onclick = (ev) => { if (!ev.target.closest(".pill, .apagar")) abrirAvaliacao(av); };
+  caixa.onclick = (ev) => { if (!ev.target.closest(".pill, .apagar, .autor")) abrirAvaliacao(av); };
   return item;
 }
 
@@ -674,9 +708,9 @@ $("av-play").onclick = () => {
 };
 
 // ---- abrir e fechar ----
-let scrollFeed = 0;
-function abrirAvaliacao(av) {
-  scrollFeed = window.scrollY; mostrar("tela-avaliacao");   // (mostrar já para qualquer prévia anterior)
+function abrirAvaliacao(av, preservarOrigem) {
+  if (!preservarOrigem) origemAv = capturarTela();
+  mostrar("tela-avaliacao");   // (mostrar já para qualquer prévia anterior)
   pl.av = av; pl.url = null;
   const m = av.musica || {};
   const capa = $("av-capa"); capa.textContent = "";
@@ -684,13 +718,191 @@ function abrirAvaliacao(av) {
   $("av-titulo").textContent = m.titulo || "Música"; $("av-sub").textContent = [m.artista, m.album].filter(Boolean).join(" – ");
   const est = $("av-estrelas"); est.textContent = ""; est.append(estrelasLeitura(av.nota));
   $("av-cores").replaceChildren(...av.cores.map((c) => { const s = document.createElement("span"); s.style.background = corOk(c); s.title = corOk(c); return s; }));
-  $("av-autor").textContent = "@" + ((av.autor && av.autor.nome_usuario) || "alguém"); $("av-quando").textContent = tempoRelativo(av.criado_em);
+  $("av-autor").textContent = "@" + ((av.autor && av.autor.nome_usuario) || "alguém"); $("av-quando").textContent = tempoRelativo(av.criado_em); $("av-autor").onclick = () => abrirPerfil(av.usuario_id);
   $("av-critica").textContent = av.critica || ""; $("av-critica").hidden = !av.critica;
   const botao = $("av-play"); botao.hidden = false; botao.disabled = true; avisoPlayer("Carregando prévia...");
   desenharNebulosa(av.cores, av.id);
   buscarLinkPrevia(pl.versao);
 }
-$("av-voltar").onclick = () => { manterFeed = true; mostrar("tela-inicio"); window.scrollTo(0, scrollFeed); };
+
+
+
+// =====================================================================
+// PERFIS, SEGUIR, BUSCA DE PESSOAS E MÚSICA PREFERIDA
+// =====================================================================
+let voltarPara = null, perfilAberto = null, infoPerfil = null, origemAv = null;
+
+// Guarda "de onde a pessoa veio", para a seta de voltar levar de volta ao lugar certo.
+function capturarTela() {
+  if (!$("tela-inicio").hidden) { const y = window.scrollY, a = aba; return () => { aba = a; manterFeed = true; mostrar("tela-inicio"); marcarAbas(); window.scrollTo(0, y); }; }
+  if (!$("tela-avaliacao").hidden) { const av = pl.av; return () => abrirAvaliacao(av, true); }
+  if (!$("tela-buscar").hidden) return () => mostrar("tela-buscar");
+  if (!$("tela-ver-perfil").hidden) { const id = perfilAberto; return () => abrirPerfil(id, true); }
+  return () => ir("inicio");
+}
+$("av-voltar").onclick = () => (origemAv || (() => ir("inicio")))();
+
+// ---- acesso aos dados ----
+const dadosPerfil = DEMO ? {
+  async obter(id) {
+    const p = id === eu.id ? eu.perfil : PERFIS_DEMO[id]; if (!p) return null;
+    const base = id === eu.id ? 0 : ({ x1: 12, x2: 5, x3: 1 })[id] || 0;
+    return { perfil: p, seguidores: base + (SEGUINDO_DEMO.has(id) ? 1 : 0), seguindo: id === eu.id ? SEGUINDO_DEMO.size : 3, euSigo: SEGUINDO_DEMO.has(id), preferida: PREFERIDAS_DEMO[id] || null };
+  },
+  async avaliacoes(id) { return AVALIACOES_DEMO.filter((a) => a.usuario_id === id).map((a) => ({ ...a, autor: a.autor || (id === eu.id ? eu.perfil : PERFIS_DEMO[id]) })); },
+  async buscar(q) { const t = q.toLowerCase(); return Object.values(PERFIS_DEMO).filter((p) => !t || p.nome_usuario.toLowerCase().includes(t)); },
+  async seguir(id) { SEGUINDO_DEMO.add(id); },
+  async deixar(id) { SEGUINDO_DEMO.delete(id); }
+} : {
+  async obter(id) {
+    const { data: perfil, error } = await sb.from("perfis").select("id,nome_usuario,bio,foto_url,banner_url,criado_em").eq("id", id).maybeSingle();
+    if (error) throw error; if (!perfil) return null;
+    const contar = (col) => sb.from("seguidores").select("*", { count: "exact", head: true }).eq(col, id);
+    const [a, b, c, d] = await Promise.all([
+      contar("seguido_id"), contar("seguidor_id"),
+      sb.from("seguidores").select("seguido_id").eq("seguidor_id", eu.id).eq("seguido_id", id).maybeSingle(),
+      sb.from("musica_preferida").select("cor1,cor2,cor3,avaliacao_id,musicas(titulo,artista,album,capa_url,explicita)").eq("usuario_id", id).maybeSingle()
+    ]);
+    const pr = d.data;
+    return { perfil, seguidores: a.count || 0, seguindo: b.count || 0, euSigo: !!c.data,
+      preferida: pr ? { musica: pr.musicas || {}, cores: [pr.cor1, pr.cor2, pr.cor3], avaliacao_id: pr.avaliacao_id } : null };
+  },
+  async avaliacoes(id) {
+    const { data, error } = await sb.from("avaliacoes").select(SELECT_AV).eq("usuario_id", id).order("criado_em", { ascending: false }).limit(50);
+    if (error) throw error; return completar(data);
+  },
+  async buscar(q) {
+    let c = sb.from("perfis").select("id,nome_usuario,bio,foto_url,criado_em").neq("id", eu.id).limit(20);
+    c = q ? c.ilike("nome_usuario", `%${q}%`).order("nome_usuario") : c.order("criado_em", { ascending: false });
+    const { data, error } = await c; if (error) throw error; return data;
+  },
+  async seguir(id) { const { error } = await sb.from("seguidores").insert({ seguidor_id: eu.id, seguido_id: id }); if (error && error.code !== "23505") throw error; },
+  async deixar(id) { const { error } = await sb.from("seguidores").delete().eq("seguidor_id", eu.id).eq("seguido_id", id); if (error) throw error; }
+};
+
+function tempoDeConta(iso) { const d = Math.floor((Date.now() - new Date(iso).getTime()) / 864e5); return d <= 0 ? "Hoje" : d === 1 ? "1 Dia" : d + " Dias"; }
+function pintarAvatar(el, perfil) {
+  const nome = (perfil && perfil.nome_usuario) || "?";
+  if (perfil && /^https:\/\//.test(perfil.foto_url || "")) { el.style.backgroundImage = `url("${perfil.foto_url}")`; el.textContent = ""; }
+  else { el.style.backgroundImage = ""; el.textContent = nome[0].toUpperCase(); }
+}
+
+// ---- tela de perfil ----
+const avisoPerfil = (t) => { const a = $("pf-aviso"); a.textContent = t || ""; a.hidden = !t; };
+function pintarSeguir() {
+  const b = $("pf-seguir"), sigo = infoPerfil.euSigo;
+  b.textContent = sigo ? "Seguindo" : "Seguir"; b.classList.toggle("sigo", sigo); b.classList.toggle("amarelo", !sigo);
+  $("pf-seguidores").textContent = infoPerfil.seguidores;
+}
+function desenharListaPerfil() {
+  const lista = $("pf-lista"); lista.textContent = ""; avisoPerfil("");
+  const por = { recentes: (a, b) => b.criado_em.localeCompare(a.criado_em), curtidas: (a, b) => b.pontuacao - a.pontuacao || b.criado_em.localeCompare(a.criado_em), nota: (a, b) => b.nota - a.nota || b.criado_em.localeCompare(a.criado_em) };
+  [...itensPerfil].sort(por[$("pf-ordem").value]).forEach((a) => lista.append(cartao(a, { semAutor: true })));
+  if (!itensPerfil.length) avisoPerfil("Ainda não avaliou nenhuma música.");
+  else if (itensPerfil.length >= 50) avisoPerfil("Mostrando as 50 avaliações mais recentes.");
+}
+let itensPerfil = [];
+async function abrirPerfil(id, semOrigem) {
+  if (!semOrigem) voltarPara = capturarTela();
+  perfilAberto = id; infoPerfil = null; mostrar("tela-ver-perfil");
+  $("pf-lista").textContent = ""; $("pf-pref").hidden = true; $("pf-seguir").hidden = true; $("pf-editar").hidden = true; $("pf-definir").hidden = true;
+  $("pf-nome").textContent = ""; $("pf-bio").textContent = ""; $("pf-tempo").textContent = ""; $("pf-banner").style.backgroundImage = ""; pintarAvatar($("pf-foto"), null);
+  avisoPerfil("Carregando...");
+  try {
+    const info = await dadosPerfil.obter(id);
+    if (perfilAberto !== id) return;                       // a pessoa já abriu outro perfil
+    if (!info) return avisoPerfil("Perfil não encontrado.");
+    infoPerfil = info; const p = info.perfil, meu = id === eu.id;
+    $("pf-nome").textContent = "@" + p.nome_usuario; $("pf-bio").textContent = p.bio || ""; $("pf-bio").hidden = !p.bio;
+    $("pf-tempo").textContent = tempoDeConta(p.criado_em);
+    $("pf-banner").style.backgroundImage = /^https:\/\//.test(p.banner_url || "") ? `url("${p.banner_url}")` : "";
+    pintarAvatar($("pf-foto"), p);
+    $("pf-seguindo").textContent = info.seguindo; $("pf-seguidores").textContent = info.seguidores;
+    $("pf-editar").hidden = !meu; $("pf-seguir").hidden = meu; if (!meu) pintarSeguir();
+    $("pf-definir").hidden = !meu; $("pf-definir").textContent = info.preferida ? "Trocar música preferida" : "Definir música preferida";
+    if (info.preferida) {
+      const m = info.preferida.musica || {};
+      $("pf-pref").hidden = false; $("pf-pref-halo").style.backgroundImage = fundoHalo(info.preferida.cores);
+      const capa = $("pf-pref-capa"); capa.textContent = "";
+      if (/^https:\/\//.test(m.capa_url || "")) capa.style.backgroundImage = `url("${m.capa_url}")`; else { capa.style.backgroundImage = ""; capa.textContent = "♪"; }
+      $("pf-pref-titulo").textContent = m.titulo || "Música"; $("pf-pref-sub").textContent = [m.artista, m.album].filter(Boolean).join(" – ");
+    }
+    itensPerfil = await dadosPerfil.avaliacoes(id);
+    if (perfilAberto === id) desenharListaPerfil();
+  } catch (e) {
+    console.error("Erro ao abrir o perfil:", e);
+    avisoPerfil("Não foi possível carregar o perfil agora. Tente de novo." + (e && e.message ? " (" + e.message + ")" : ""));
+  }
+}
+$("pf-voltar").onclick = () => (voltarPara || (() => ir("inicio")))();
+$("pf-ordem").onchange = desenharListaPerfil;
+$("pf-definir").onclick = () => { iniciarAdicionar("preferida"); mostrar("tela-adicionar"); };
+$("pf-seguir").onclick = async () => {
+  const b = $("pf-seguir"), id = perfilAberto; b.disabled = true;
+  try {
+    if (infoPerfil.euSigo) await dadosPerfil.deixar(id); else await dadosPerfil.seguir(id);
+    infoPerfil.euSigo = !infoPerfil.euSigo; infoPerfil.seguidores += infoPerfil.euSigo ? 1 : -1; pintarSeguir();
+  } catch (e) { console.error(e); avisoPerfil("Não foi possível atualizar agora. Tente de novo."); }
+  b.disabled = false;
+};
+
+// ---- editar o próprio perfil (reaproveita a tela de criar perfil) ----
+let editandoPerfil = false;
+function restaurarFormPerfil() { editandoPerfil = false; $("perfil-titulo").textContent = "Seu perfil"; $("perfil-nome").disabled = false; $("cancelar-perfil").hidden = true; }
+$("pf-editar").onclick = () => {
+  editandoPerfil = true; const p = eu.perfil; erro("erro-perfil");
+  $("perfil-titulo").textContent = "Editar perfil"; $("perfil-nome").value = p.nome_usuario; $("perfil-nome").disabled = true;
+  $("perfil-bio").value = p.bio || ""; $("arq-foto").value = ""; $("arq-banner").value = ""; $("cancelar-perfil").hidden = false;
+  $("previa-banner").style.backgroundImage = /^https:\/\//.test(p.banner_url || "") ? `url("${p.banner_url}")` : ""; pintarAvatar($("previa-foto"), p);
+  mostrar("tela-perfil");
+};
+$("cancelar-perfil").onclick = () => { restaurarFormPerfil(); abrirPerfil(eu.id, true); };
+$("form-perfil").onsubmit = async (ev) => {                  // substitui o do primeiro acesso: agora serve para criar e para editar
+  ev.preventDefault(); erro("erro-perfil");
+  const nome = $("perfil-nome").value.trim(), bio = $("perfil-bio").value.trim();
+  if (!editandoPerfil && !/^[A-Za-z0-9_.]{3,20}$/.test(nome)) return erro("erro-perfil", "Nome de usuário: 3 a 20 caracteres, só letras, números, _ e ponto.");
+  const b = ev.submitter; ocupado(b, true);
+  try {
+    const { data } = await sb.auth.getSession(), uid = data.session.user.id;
+    const foto_url = await enviarImagem("fotos-perfil", uid, $("arq-foto").files[0], "foto");
+    const banner_url = await enviarImagem("banners", uid, $("arq-banner").files[0], "banner");
+    if (editandoPerfil) {
+      const campos = { bio: bio || null }; if (foto_url) campos.foto_url = foto_url; if (banner_url) campos.banner_url = banner_url;
+      const { error } = await sb.from("perfis").update(campos).eq("id", uid); if (error) throw error;
+      Object.assign(eu.perfil, campos); restaurarFormPerfil(); abrirPerfil(uid, true);
+    } else {
+      const { error } = await sb.from("perfis").insert({ id: uid, nome_usuario: nome, bio: bio || null, foto_url, banner_url });
+      if (error) { if (error.code === "23505") throw new Error("Esse nome de usuário já está em uso."); throw new Error(traduzir(error)); }
+      rotear();
+    }
+  } catch (e) {
+    erro("erro-perfil", e.message && /usuário|Imagem/.test(e.message) ? e.message : "Não foi possível salvar o perfil. Tente de novo.");
+  }
+  ocupado(b, false);
+};
+
+// ---- busca de pessoas ----
+const avisoBusca = (t) => { const a = $("bu-aviso"); a.textContent = t || ""; a.hidden = !t; };
+let esperaBusca = null, versaoBusca = 0;
+async function carregarPessoas() {
+  const q = $("bu-q").value.replace(/[^A-Za-z0-9_.]/g, ""), v = ++versaoBusca;
+  if (q.length === 1) return;                                // espera pelo menos 2 letras
+  $("bu-titulo").textContent = q ? "Resultados" : "Pessoas novas"; avisoBusca("Buscando...");
+  try {
+    const pessoas = await dadosPerfil.buscar(q); if (v !== versaoBusca) return;
+    const lista = $("bu-lista"); lista.textContent = ""; avisoBusca("");
+    pessoas.forEach((p) => {
+      const b = elemento("button", "pessoa"), av = elemento("div", "avatar"), info = elemento("div", "info");
+      b.type = "button"; pintarAvatar(av, p); info.append(elemento("b", "", "@" + p.nome_usuario)); if (p.bio) info.append(elemento("small", "", p.bio));
+      b.append(av, info); b.onclick = () => abrirPerfil(p.id); lista.append(b);
+    });
+    if (!pessoas.length) avisoBusca(q ? "Ninguém encontrado com esse nome." : "Ainda não há outras pessoas por aqui.");
+  } catch (e) { console.error(e); if (v === versaoBusca) avisoBusca("Não foi possível buscar agora. Tente de novo."); }
+}
+function abrirBuscar() { mostrar("tela-buscar"); carregarPessoas(); }
+$("bu-q").addEventListener("input", () => { clearTimeout(esperaBusca); esperaBusca = setTimeout(carregarPessoas, 300); });
+$("bu-q").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); clearTimeout(esperaBusca); carregarPessoas(); } });
+$("bu-ir").onclick = carregarPessoas;
 
 sb.auth.onAuthStateChange((evento) => { if (evento === "SIGNED_OUT") mostrar("tela-entrar"); });
 rotear();
