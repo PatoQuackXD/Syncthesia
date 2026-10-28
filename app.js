@@ -22,7 +22,7 @@ const PERFIS_DEMO = {
   x3: { id: "x3", nome_usuario: "ana_ouve", bio: null, foto_url: null, banner_url: null, criado_em: dias(2) }
 };
 const SEGUINDO_DEMO = new Set();
-const PREFERIDAS_DEMO = { x1: { musica: { titulo: "Messages From The Stars", artista: "The RAH Band", album: "Going Up" }, cores: ["#8E3BC4", "#E9A0F0", "#C8D1DA"], avaliacao_id: null } };
+const PREFERIDAS_DEMO = { x1: { musica_id: "demo-musica-x1", musica: { titulo: "Messages From The Stars", artista: "The RAH Band", album: "Going Up" }, cores: ["#8E3BC4", "#E9A0F0", "#C8D1DA"], avaliacao_id: null } };
 
 // Sem config preenchido, roda com um "Supabase de mentira" só para ver as telas.
 function clienteDemo() {
@@ -50,7 +50,7 @@ function clienteDemo() {
     },
     from(tabela) {
       if (tabela === "musica_preferida") return { async upsert(l) {
-        PREFERIDAS_DEMO[l.usuario_id] = { musica: MUSICAS_DEMO.find((m) => "demo-musica-" + m.deezer_id === l.musica_id) || { titulo: "Música" },
+        PREFERIDAS_DEMO[l.usuario_id] = { musica_id: l.musica_id, musica: MUSICAS_DEMO.find((m) => "demo-musica-" + m.deezer_id === l.musica_id) || { titulo: "Música" },
           cores: [l.cor1, l.cor2, l.cor3].map((x) => x.toUpperCase()), avaliacao_id: l.avaliacao_id }; return { error: null }; } };
       if (tabela === "perfis") return { update(c) { return { async eq(_k, id) { Object.assign(perfis.find((p) => p.id === id), c); return { error: null }; } }; },
         select() { return { eq(_c, id) { return { async maybeSingle() { return { data: perfis.find((p) => p.id === id) || null, error: null }; } }; } }; },
@@ -716,10 +716,11 @@ function abrirAvaliacao(av, preservarOrigem) {
   const capa = $("av-capa"); capa.textContent = "";
   if (/^https:\/\//.test(m.capa_url || "")) capa.style.backgroundImage = `url("${m.capa_url}")`; else { capa.style.backgroundImage = ""; capa.textContent = "♪"; }
   $("av-titulo").textContent = m.titulo || "Música"; $("av-sub").textContent = [m.artista, m.album].filter(Boolean).join(" – ");
-  const est = $("av-estrelas"); est.textContent = ""; est.append(estrelasLeitura(av.nota));
+  const est = $("av-estrelas"); est.textContent = ""; if (!av.preferida) est.append(estrelasLeitura(av.nota));
+  est.hidden = !!av.preferida; $("av-quem").hidden = !!av.preferida;
   $("av-cores").replaceChildren(...av.cores.map((c) => { const s = document.createElement("span"); s.style.background = corOk(c); s.title = corOk(c); return s; }));
-  $("av-autor").textContent = "@" + ((av.autor && av.autor.nome_usuario) || "alguém"); $("av-quando").textContent = tempoRelativo(av.criado_em); $("av-autor").onclick = () => abrirPerfil(av.usuario_id);
-  $("av-critica").textContent = av.critica || ""; $("av-critica").hidden = !av.critica;
+  if (!av.preferida) { $("av-autor").textContent = "@" + ((av.autor && av.autor.nome_usuario) || "alguém"); $("av-quando").textContent = tempoRelativo(av.criado_em); $("av-autor").onclick = () => abrirPerfil(av.usuario_id); }
+  $("av-critica").textContent = av.critica || ""; $("av-critica").hidden = !!av.preferida || !av.critica;
   const botao = $("av-play"); botao.hidden = false; botao.disabled = true; avisoPlayer("Carregando prévia...");
   desenharNebulosa(av.cores, av.id);
   buscarLinkPrevia(pl.versao);
@@ -761,11 +762,11 @@ const dadosPerfil = DEMO ? {
     const [a, b, c, d] = await Promise.all([
       contar("seguido_id"), contar("seguidor_id"),
       sb.from("seguidores").select("seguido_id").eq("seguidor_id", eu.id).eq("seguido_id", id).maybeSingle(),
-      sb.from("musica_preferida").select("cor1,cor2,cor3,avaliacao_id,musicas(titulo,artista,album,capa_url,explicita)").eq("usuario_id", id).maybeSingle()
+      sb.from("musica_preferida").select("musica_id,cor1,cor2,cor3,avaliacao_id,musicas(titulo,artista,album,capa_url,explicita)").eq("usuario_id", id).maybeSingle()
     ]);
     const pr = d.data;
     return { perfil, seguidores: a.count || 0, seguindo: b.count || 0, euSigo: !!c.data,
-      preferida: pr ? { musica: pr.musicas || {}, cores: [pr.cor1, pr.cor2, pr.cor3], avaliacao_id: pr.avaliacao_id } : null };
+      preferida: pr ? { musica_id: pr.musica_id, musica: pr.musicas || {}, cores: [pr.cor1, pr.cor2, pr.cor3], avaliacao_id: pr.avaliacao_id } : null };
   },
   async avaliacoes(id) {
     const { data, error } = await sb.from("avaliacoes").select(SELECT_AV).eq("usuario_id", id).order("criado_em", { ascending: false }).limit(50);
@@ -834,6 +835,12 @@ async function abrirPerfil(id, semOrigem) {
     avisoPerfil("Não foi possível carregar o perfil agora. Tente de novo." + (e && e.message ? " (" + e.message + ")" : ""));
   }
 }
+function abrirPreferida() {
+  const pr = infoPerfil && infoPerfil.preferida; if (!pr) return;
+  abrirAvaliacao({ id: "pref-" + infoPerfil.perfil.id, preferida: true, musica_id: pr.musica_id, musica: pr.musica, cores: pr.cores });
+}
+$("pf-pref-corpo").onclick = abrirPreferida;
+$("pf-pref-corpo").onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); abrirPreferida(); } };
 $("pf-voltar").onclick = () => (voltarPara || (() => ir("inicio")))();
 $("pf-ordem").onchange = desenharListaPerfil;
 $("pf-definir").onclick = () => { iniciarAdicionar("preferida"); mostrar("tela-adicionar"); };
