@@ -201,3 +201,6 @@ button.nick:hover{text-decoration:underline}
 .pessoa:hover,.pessoa:focus-visible{border-color:var(--texto)}
 .pessoa .info{min-width:0;flex:1}.pessoa b{display:block;color:var(--azul)}
 .pessoa small{display:block;color:#444;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.pref-corpo{cursor:pointer;border-radius:20px}
+.pref-corpo:focus-visible{outline:3px solid var(--texto);outline-offset:4px}
