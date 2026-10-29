@@ -7,9 +7,9 @@ const API_URL = (cfg.API_URL || "https://meu-backend-jf73.onrender.com").replace
 
 // Avaliações de exemplo (modo demonstração): o feed e o "banco" falso usam a mesma lista.
 const AVALIACOES_DEMO = [
-  { id: "d1", musica_id: "seed-1", usuario_id: "x1", autor: { nome_usuario: "lia_discos" }, musica: { titulo: "Walkin' On The Sun", artista: "Smash Mouth", album: "All Stars Smash Hits" },
+  { id: "d1", hit: true, musica_id: "seed-1", usuario_id: "x1", autor: { nome_usuario: "lia_discos" }, musica: { titulo: "Walkin' On The Sun", artista: "Smash Mouth", album: "All Stars Smash Hits" },
     nota: 5, critica: "Se eu pudesse ter uma música tema, seria essa.", cores: ["#E8A33D", "#7BC96F", "#F2E14C"], primeira: false, reavaliacao: true, criado_em: new Date(Date.now() - 3 * 36e5).toISOString(), pontuacao: 31, minha: null },
-  { id: "d2", musica_id: "seed-2", usuario_id: "x2", autor: { nome_usuario: "bruno.vinil" }, musica: { titulo: "Something About Us", artista: "Daft Punk", album: "Discovery" },
+  { id: "d2", hit: true, musica_id: "seed-2", usuario_id: "x2", autor: { nome_usuario: "bruno.vinil" }, musica: { titulo: "Something About Us", artista: "Daft Punk", album: "Discovery" },
     nota: 4.5, critica: "Na cara, não pra não estragar o funeral.", cores: ["#2B3FA8", "#1F7A4A", "#0B0B1E"], primeira: true, reavaliacao: false, criado_em: new Date(Date.now() - 2 * 864e5).toISOString(), pontuacao: 18, minha: null },
   { id: "d3", musica_id: "seed-3", usuario_id: "x3", autor: { nome_usuario: "ana_ouve" }, musica: { titulo: "Eu Ouço Vozes", artista: "Artista Exemplo", album: "Álbum Exemplo", explicita: true },
     nota: 3.5, critica: null, cores: ["#E0208F", "#00B8D9", "#F2C500"], primeira: false, reavaliacao: false, criado_em: new Date(Date.now() - 7 * 864e5).toISOString(), pontuacao: 0, minha: null }
@@ -441,22 +441,24 @@ const SELECT_AV = "id,musica_id,nota,critica,cor1,cor2,cor3,eh_reavaliacao,eh_pr
 async function completar(linhas) {
   if (!linhas.length) return [];
   const ids = linhas.map((l) => l.id);
-  const [pl, re] = await Promise.all([
+  const [pl, re, ht] = await Promise.all([
     sb.from("avaliacoes_placar").select("avaliacao_id,pontuacao").in("avaliacao_id", ids),
-    sb.from("reacoes").select("avaliacao_id,tipo").in("avaliacao_id", ids)   // só as minhas (regra do banco)
+    sb.from("reacoes").select("avaliacao_id,tipo").in("avaliacao_id", ids),   // só as minhas (regra do banco)
+    sb.from("hits").select("avaliacao_id").in("avaliacao_id", ids)           // quais já foram escolhidas como HIT
   ]);
+  const hits = new Set((ht.data || []).map((x) => x.avaliacao_id));
   const placar = Object.fromEntries((pl.data || []).map((x) => [x.avaliacao_id, x.pontuacao]));
   const minhas = Object.fromEntries((re.data || []).map((x) => [x.avaliacao_id, x.tipo]));
   return linhas.map((l) => ({
     id: l.id, musica_id: l.musica_id, nota: Number(l.nota), critica: l.critica, cores: [l.cor1, l.cor2, l.cor3],
     reavaliacao: l.eh_reavaliacao, primeira: l.eh_primeira_da_musica, criado_em: l.criado_em, usuario_id: l.usuario_id,
-    autor: l.perfis || {}, musica: l.musicas || {}, pontuacao: placar[l.id] || 0, minha: minhas[l.id] || null
+    autor: l.perfis || {}, musica: l.musicas || {}, pontuacao: placar[l.id] || 0, minha: minhas[l.id] || null, hit: hits.has(l.id)
   }));
 }
 const dados = DEMO ? {
   async global(antes) { const lista = AVALIACOES_DEMO.filter((a) => !antes || a.criado_em < antes).map((a) => ({ ...a, autor: a.autor || eu.perfil })); return { itens: lista.slice(0, TAM_PAGINA), mais: false }; },
   async seguidos() { return { itens: AVALIACOES_DEMO.filter((a) => SEGUINDO_DEMO.has(a.usuario_id)).map((a) => ({ ...a, autor: a.autor || PERFIS_DEMO[a.usuario_id] })), mais: false }; },
-  async hit() { return { itens: AVALIACOES_DEMO.filter((a) => a.pontuacao > 0).sort((a, b) => b.pontuacao - a.pontuacao).map((a) => ({ ...a, autor: a.autor || eu.perfil, hit: true })), mais: false }; },
+  async hit() { return { itens: AVALIACOES_DEMO.filter((a) => a.hit).map((a) => ({ ...a, autor: a.autor || PERFIS_DEMO[a.usuario_id] || eu.perfil })), mais: false }; },
   async reagir(av, tipo) {
     const original = AVALIACOES_DEMO.find((a) => a.id === av.id), antes = av.minha;
     const nova = antes === tipo ? null : tipo;
@@ -480,13 +482,13 @@ const dados = DEMO ? {
     if (e2) throw e2;
     return { itens: await completar(data), mais: seg.length === TAM_PAGINA };
   },
-  async hit() {
-    const { data: h, error } = await sb.rpc("hit", { p_limite: 50 });
+  async hit() {                                  // lista FIXA do último fechamento (12h); não muda com curtidas novas
+    const { data: h, error } = await sb.rpc("hit_atual");
     if (error) throw error;
     if (!h.length) return { itens: [], mais: false };
     const { data, error: e2 } = await sb.from("avaliacoes").select(SELECT_AV).in("id", h.map((x) => x.avaliacao_id));
     if (e2) throw e2;
-    const ordem = Object.fromEntries(h.map((x, i) => [x.avaliacao_id, i]));
+    const ordem = Object.fromEntries(h.map((x) => [x.avaliacao_id, x.posicao]));
     const itens = (await completar(data)).sort((a, b) => ordem[a.id] - ordem[b.id]);
     itens.forEach((a) => { a.hit = true; });
     return { itens, mais: false };
@@ -591,11 +593,17 @@ function cartao(av, opc = {}) {
 const VAZIO = {
   global: "Ainda não há avaliações. Seja o primeiro: toque no + para adicionar a sua.",
   seguidos: "Nada por aqui ainda: você não segue ninguém, ou quem você segue ainda não avaliou.",
-  hit: "Nenhum destaque nesta janela (de 12h a 12h). Curta uma avaliação para ela aparecer aqui."
+  hit: "Ainda não há HITS. A primeira seleção acontece às 12h (horário de Brasília), com as avaliações das 24h anteriores."
 };
+let ultimoFechamento = 0;
+async function garantirHits() {
+  if (DEMO || Date.now() - ultimoFechamento < 600000) return;
+  ultimoFechamento = Date.now();
+  try { await sb.rpc("selecionar_hits"); } catch (e) { console.error("Fechamento do HIT:", e); }
+}
 let aba = ABA_PADRAO, cursor = null, carregando = false;
 function avisoFeed(t) { const a = $("feed-aviso"); a.textContent = t; a.hidden = !t; }
-function marcarAbas() { document.querySelectorAll(".aba").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.aba === aba))); }
+function marcarAbas() { document.querySelectorAll(".aba").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.aba === aba))); $("hit-info").hidden = aba !== "hit"; }
 async function carregarFeed(reiniciar) {
   if (carregando) return; carregando = true;
   const lista = $("feed");
@@ -603,6 +611,7 @@ async function carregarFeed(reiniciar) {
   avisoFeed("Carregando...");
   const minhaAba = aba;
   try {
+    if (reiniciar) await garantirHits();
     const { itens, mais } = await dados[minhaAba](cursor);
     if (minhaAba !== aba) { carregando = false; return; }        // mudou de aba durante o carregamento
     avisoFeed("");
