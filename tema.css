@@ -204,3 +204,5 @@ button.nick:hover{text-decoration:underline}
 
 .pref-corpo{cursor:pointer;border-radius:20px}
 .pref-corpo:focus-visible{outline:3px solid var(--texto);outline-offset:4px}
+
+.hit-info{text-align:center;margin:-4px 6px 14px;font-size:.8rem}
