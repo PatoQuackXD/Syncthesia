@@ -206,3 +206,45 @@ button.nick:hover{text-decoration:underline}
 .pref-corpo:focus-visible{outline:3px solid var(--texto);outline-offset:4px}
 
 .hit-info{text-align:center;margin:-4px 6px 14px;font-size:.8rem}
+
+/* ---------- Comentários ---------- */
+.av .lado{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex:none}
+.av .lado .quando{margin:0;font-size:.8rem}
+.av .acoes{flex-wrap:nowrap;gap:6px}.av .pill{padding:4px 10px}
+.pill.coment{background:var(--cinza);color:#fff}
+.pill.coment .icone{width:1.1em;height:1.1em}
+.av{position:relative;z-index:1}
+.previa{background:var(--painel);border-radius:28px;margin:-20px 0 0 34px;padding:28px 16px 12px;cursor:pointer;position:relative;z-index:0}
+.previa .quem-p{display:flex;gap:10px;align-items:center;font-size:.9rem}
+.previa .avatar{width:34px;height:34px;font-size:.9rem}
+.previa .quem-p b{color:var(--azul)}
+.previa p{margin:8px 0 0;font-size:.95rem;overflow-wrap:anywhere}
+.previa .rodape{display:flex;align-items:center;gap:8px;margin-top:8px}
+.previa .rodape .quando{margin-left:auto;font-size:.8rem}
+.resumo{display:flex;gap:12px;background:var(--card);border-radius:24px;padding:12px 14px;margin:0 0 14px;cursor:pointer;align-items:center}
+.resumo .corpo{flex:1;min-width:0}
+.resumo .halo{width:76px;height:76px;border-radius:20px}.resumo .halo .capa-g{width:44px;height:44px}
+.resumo h3{margin:0;font-size:1rem}
+.resumo .estrelas-leitura{--sz:16px;margin-top:6px}
+.resumo .autor{margin:0 0 4px;display:flex;align-items:center;gap:8px}.resumo .autor .avatar{width:28px;height:28px;font-size:.8rem}.resumo .autor .nome{font-size:.8rem;color:var(--azul);font-weight:700}
+.contexto{font-size:.9rem;margin:-4px 2px 12px}
+.contexto button{background:none;border:0;font:inherit;font-weight:800;text-decoration:underline;cursor:pointer;color:var(--texto);padding:0}
+.compor{padding:14px;margin:0 0 14px}
+.compor .campo{margin:0 0 8px;min-height:84px;border-radius:22px}
+.compor-rodape{display:flex;align-items:center;gap:12px;justify-content:space-between}
+.compor-rodape .botao{width:auto;margin:0;padding:11px 26px}
+#contador-com{font-size:.8rem;color:#333;font-weight:700}
+.com{background:var(--card);border-radius:24px;padding:14px 14px 12px;margin-bottom:10px}
+.com.foco{background:var(--branco);padding:16px}.com.foco .texto-c{font-size:1.1rem}
+.com .cab{display:flex;align-items:center;gap:10px}
+.com .avatar{width:38px;height:38px;font-size:.95rem}
+button.autor-com{display:flex;align-items:center;gap:10px;background:none;border:0;padding:0;font:inherit;cursor:pointer;color:inherit}
+.com .nome{color:var(--azul);font-weight:800;font-size:.9rem}
+.com .t{font-size:.78rem;color:#333;margin-left:auto}
+.com .texto-c{margin:8px 0 0;overflow-wrap:anywhere;white-space:pre-wrap}
+.com .acoes{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}
+.com .clicavel{cursor:pointer}.com.clicavel{cursor:pointer}
+.com .apagar{margin-left:auto}
+#modal{position:fixed;inset:0;background:#0008;display:grid;place-items:center;z-index:50;padding:20px}
+.caixa-modal{background:var(--branco);border-radius:28px;padding:22px;max-width:340px;width:100%}
+.caixa-modal h2{margin:0 0 8px;font-size:1.2rem}.caixa-modal p{margin:0 0 14px}
