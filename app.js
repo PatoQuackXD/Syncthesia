@@ -2,7 +2,7 @@
 const cfg = window.SYNC_CONFIG || {};
 const DEMO = !cfg.SUPABASE_URL || cfg.SUPABASE_URL.startsWith("COLE");
 const $ = (id) => document.getElementById(id);
-const TELAS = ["tela-entrar", "tela-cadastro", "tela-perfil", "tela-inicio", "tela-adicionar", "tela-avaliacao", "tela-buscar", "tela-ver-perfil"];
+const TELAS = ["tela-entrar", "tela-cadastro", "tela-perfil", "tela-inicio", "tela-adicionar", "tela-avaliacao", "tela-buscar", "tela-ver-perfil", "tela-conversa"];
 const API_URL = (cfg.API_URL || "https://meu-backend-jf73.onrender.com").replace(/\/$/, "");
 
 // Avaliações de exemplo (modo demonstração): o feed e o "banco" falso usam a mesma lista.
@@ -22,6 +22,26 @@ const PERFIS_DEMO = {
   x3: { id: "x3", nome_usuario: "ana_ouve", bio: null, foto_url: null, banner_url: null, criado_em: dias(2) }
 };
 const SEGUINDO_DEMO = new Set();
+const mins = (n) => new Date(Date.now() - n * 60000).toISOString();
+const COMENTARIOS_DEMO = [
+  { id: "c1", avaliacao_id: "d1", pai_id: null, usuario_id: "x2", texto: "ESSA É GOAT DEMAIS", criado_em: mins(2), pontuacao: 4, minha: null },
+  { id: "c2", avaliacao_id: "d1", pai_id: null, usuario_id: "x3", texto: "Tema de abertura de série, fácil.", criado_em: mins(95), pontuacao: 1, minha: null },
+  { id: "c3", avaliacao_id: "d1", pai_id: "c1", usuario_id: "x1", texto: "Obrigada!! Sabia que você ia gostar.", criado_em: mins(1), pontuacao: 0, minha: null },
+  { id: "c4", avaliacao_id: "d1", pai_id: "c1", usuario_id: "x3", texto: "Concordo. Nota 10.", criado_em: mins(30), pontuacao: 2, minha: null }
+];
+const autorDemo = (uid) => (uid === eu.id ? eu.perfil : PERFIS_DEMO[uid] || { nome_usuario: "alguém" });
+const respostasDemo = (id) => COMENTARIOS_DEMO.filter((c) => c.pai_id === id).reduce((n, c) => n + 1 + respostasDemo(c.id), 0);
+const respondeADemo = (c) => {
+  const pai = c.pai_id && COMENTARIOS_DEMO.find((x) => x.id === c.pai_id);
+  if (pai) return autorDemo(pai.usuario_id).nome_usuario;
+  const av = AVALIACOES_DEMO.find((a) => a.id === c.avaliacao_id);
+  return av ? ((av.autor && av.autor.nome_usuario) || autorDemo(av.usuario_id).nome_usuario) : "alguém";
+};
+const comDemo = (a) => {                                    // total de comentários e a prévia de quem eu sigo
+  const lista = COMENTARIOS_DEMO.filter((c) => c.avaliacao_id === a.id);
+  const seg = lista.filter((c) => SEGUINDO_DEMO.has(c.usuario_id)).sort((x, y) => y.criado_em.localeCompare(x.criado_em))[0];
+  return { ...a, comentarios: lista.length, previa: seg ? { id: seg.id, nome_usuario: autorDemo(seg.usuario_id).nome_usuario, foto_url: null, texto: seg.texto, criado_em: seg.criado_em, respostas: respostasDemo(seg.id), responde_a: respondeADemo(seg) } : null };
+};
 const PREFERIDAS_DEMO = { x1: { musica_id: "demo-musica-x1", musica: { titulo: "Messages From The Stars", artista: "The RAH Band", album: "Going Up" }, cores: ["#8E3BC4", "#E9A0F0", "#C8D1DA"], avaliacao_id: null } };
 
 // Sem config preenchido, roda com um "Supabase de mentira" só para ver as telas.
@@ -66,6 +86,7 @@ function clienteDemo() {
           musica: MUSICAS_DEMO.find((m) => "demo-musica-" + m.deezer_id === l.musica_id) || { titulo: "Música", artista: "", album: "" },
           nota: l.nota, critica: l.critica, cores: [l.cor1, l.cor2, l.cor3].map((x) => x.toUpperCase()),
           primeira: linha.eh_primeira_da_musica, reavaliacao: linha.eh_reavaliacao, criado_em: new Date().toISOString(), pontuacao: 0, minha: null });
+        COMENTARIOS_DEMO.push({ id: "cs" + linha.id, avaliacao_id: linha.id, pai_id: null, usuario_id: "x3", texto: "Também curti essa!", criado_em: new Date().toISOString(), pontuacao: 0, minha: null });
         return { data: linha, error: null };
       } }; } }; } };
       return {
@@ -441,24 +462,28 @@ const SELECT_AV = "id,musica_id,nota,critica,cor1,cor2,cor3,eh_reavaliacao,eh_pr
 async function completar(linhas) {
   if (!linhas.length) return [];
   const ids = linhas.map((l) => l.id);
-  const [pl, re, ht] = await Promise.all([
+  const [pl, re, ht, ct, pv] = await Promise.all([
     sb.from("avaliacoes_placar").select("avaliacao_id,pontuacao").in("avaliacao_id", ids),
     sb.from("reacoes").select("avaliacao_id,tipo").in("avaliacao_id", ids),   // só as minhas (regra do banco)
     sb.from("hits").select("avaliacao_id").in("avaliacao_id", ids)           // quais já foram escolhidas como HIT
+    ,sb.from("avaliacoes_comentarios").select("avaliacao_id,total").in("avaliacao_id", ids),   // comentários + respostas
+    sb.rpc("comentario_previa_feed", { p_ids: ids })                                         // comentário de quem eu sigo
   ]);
+  const totais = Object.fromEntries((ct.data || []).map((x) => [x.avaliacao_id, x.total]));
+  const previas = Object.fromEntries((pv.data || []).map((x) => [x.avaliacao_id, x]));
   const hits = new Set((ht.data || []).map((x) => x.avaliacao_id));
   const placar = Object.fromEntries((pl.data || []).map((x) => [x.avaliacao_id, x.pontuacao]));
   const minhas = Object.fromEntries((re.data || []).map((x) => [x.avaliacao_id, x.tipo]));
   return linhas.map((l) => ({
     id: l.id, musica_id: l.musica_id, nota: Number(l.nota), critica: l.critica, cores: [l.cor1, l.cor2, l.cor3],
     reavaliacao: l.eh_reavaliacao, primeira: l.eh_primeira_da_musica, criado_em: l.criado_em, usuario_id: l.usuario_id,
-    autor: l.perfis || {}, musica: l.musicas || {}, pontuacao: placar[l.id] || 0, minha: minhas[l.id] || null, hit: hits.has(l.id)
+    autor: l.perfis || {}, musica: l.musicas || {}, pontuacao: placar[l.id] || 0, minha: minhas[l.id] || null, hit: hits.has(l.id), comentarios: totais[l.id] || 0, previa: previas[l.id] || null
   }));
 }
 const dados = DEMO ? {
-  async global(antes) { const lista = AVALIACOES_DEMO.filter((a) => !antes || a.criado_em < antes).map((a) => ({ ...a, autor: a.autor || eu.perfil })); return { itens: lista.slice(0, TAM_PAGINA), mais: false }; },
-  async seguidos() { return { itens: AVALIACOES_DEMO.filter((a) => SEGUINDO_DEMO.has(a.usuario_id)).map((a) => ({ ...a, autor: a.autor || PERFIS_DEMO[a.usuario_id] })), mais: false }; },
-  async hit() { return { itens: AVALIACOES_DEMO.filter((a) => a.hit).map((a) => ({ ...a, autor: a.autor || PERFIS_DEMO[a.usuario_id] || eu.perfil })), mais: false }; },
+  async global(antes) { const lista = AVALIACOES_DEMO.filter((a) => !antes || a.criado_em < antes).map((a) => comDemo({ ...a, autor: a.autor || eu.perfil })); return { itens: lista.slice(0, TAM_PAGINA), mais: false }; },
+  async seguidos() { return { itens: AVALIACOES_DEMO.filter((a) => SEGUINDO_DEMO.has(a.usuario_id)).map((a) => comDemo({ ...a, autor: a.autor || PERFIS_DEMO[a.usuario_id] })), mais: false }; },
+  async hit() { return { itens: AVALIACOES_DEMO.filter((a) => a.hit).map((a) => comDemo({ ...a, autor: a.autor || PERFIS_DEMO[a.usuario_id] || eu.perfil })), mais: false }; },
   async reagir(av, tipo) {
     const original = AVALIACOES_DEMO.find((a) => a.id === av.id), antes = av.minha;
     const nova = antes === tipo ? null : tipo;
@@ -530,6 +555,21 @@ function estrelasLeitura(nota) {
 }
 function elemento(tag, classe, texto) { const e = document.createElement(tag); if (classe) e.className = classe; if (texto != null) e.textContent = texto; return e; }
 
+function bolhaPrevia(av) {
+  const pr = av.previa, p = elemento("div", "previa"), q = elemento("div", "quem-p"), avt = elemento("div", "avatar");
+  pintarAvatar(avt, { nome_usuario: pr.nome_usuario, foto_url: pr.foto_url });
+  const tx = elemento("span"); tx.append(elemento("b", "", "@" + pr.nome_usuario), document.createTextNode(" respondeu a "), elemento("b", "", "@" + (pr.responde_a || "alguém")));
+  q.append(avt, tx);
+  const rod = elemento("div", "rodape"), pill = elemento("button", "pill coment"); pill.type = "button";
+  pill.innerHTML = '<span class="icone i-comentario"></span><span class="n"></span>'; pill.querySelector(".n").textContent = pr.respostas || 0;
+  pill.setAttribute("aria-label", (pr.respostas || 0) + " respostas");
+  pill.onclick = (ev) => { ev.stopPropagation(); abrirConversa(av, pr.id); };
+  rod.append(pill, elemento("span", "quando", tempoRelativo(pr.criado_em)));
+  p.append(q, elemento("p", "", pr.texto), rod);
+  p.onclick = () => abrirConversa(av, pr.id);
+  return p;
+}
+
 function cartao(av, opc = {}) {
   const item = elemento("div", "item");
   const tags = [[av.hit, "hit", "HIT"], [av.primeira, "primeira", "#1 Avaliação"], [av.reavaliacao, "reav", "Re-avaliação"]];
@@ -550,15 +590,17 @@ function cartao(av, opc = {}) {
   corpo.append(estrelasLeitura(av.nota));
 
   const acoes = elemento("div", "acoes");
-  const curtir = elemento("button", "pill curtir"), discordar = elemento("button", "pill discordar");
-  curtir.type = discordar.type = "button";
+  const curtir = elemento("button", "pill curtir"), discordar = elemento("button", "pill discordar"), coment = elemento("button", "pill coment");
+  curtir.type = discordar.type = coment.type = "button";
   curtir.innerHTML = '<span class="icone i-estrela"></span><span class="n"></span>';
   discordar.innerHTML = '<span class="icone i-discordar"></span>';
-  curtir.setAttribute("aria-label", "Curtir"); discordar.setAttribute("aria-label", "Discordar");
+  coment.innerHTML = '<span class="icone i-comentario"></span><span class="n"></span>';
+  curtir.setAttribute("aria-label", "Curtir"); discordar.setAttribute("aria-label", "Discordar"); coment.setAttribute("aria-label", "Comentários");
   const pintar = () => {
     curtir.querySelector(".n").textContent = av.pontuacao;
     curtir.setAttribute("aria-pressed", String(av.minha === "curtir")); discordar.setAttribute("aria-pressed", String(av.minha === "discordar"));
   };
+  av._pintarCom = () => { coment.querySelector(".n").textContent = av.comentarios || 0; };
   const reagir = async (tipo, botao) => {
     botao.classList.add("ocupado");
     try { const r = await dados.reagir(av, tipo); av.minha = r.minha; av.pontuacao = r.pontuacao; pintar(); }
@@ -566,8 +608,16 @@ function cartao(av, opc = {}) {
     botao.classList.remove("ocupado");
   };
   curtir.onclick = () => reagir("curtir", curtir); discordar.onclick = () => reagir("discordar", discordar);
-  pintar();
-  acoes.append(curtir, discordar);
+  coment.onclick = () => abrirConversa(av);
+  pintar(); av._pintarCom();
+  acoes.append(curtir, discordar, coment);
+  corpo.append(acoes);
+
+  const halo = elemento("div", "halo"); halo.style.backgroundImage = fundoHalo(av.cores);
+  const capa = elemento("div", "capa-g");
+  if (/^https:\/\//.test(m.capa_url || "")) capa.style.backgroundImage = `url("${m.capa_url}")`; else capa.textContent = "♪";
+  halo.append(capa);
+  const lado = elemento("div", "lado"); lado.append(halo, elemento("span", "quando", tempoRelativo(av.criado_em)));
   if (av.usuario_id === eu.id) {
     const ap = elemento("button", "apagar", "Apagar"); ap.type = "button";
     ap.onclick = async () => {
@@ -575,17 +625,11 @@ function cartao(av, opc = {}) {
       try { await dados.apagar(av.id); item.remove(); if (!$("feed").children.length) avisoFeed(VAZIO[aba]); }
       catch (e) { console.error(e); avisoFeed("Não foi possível apagar agora."); }
     };
-    acoes.append(ap);
+    lado.append(ap);
   }
-  acoes.append(elemento("span", "quando", tempoRelativo(av.criado_em)));
-  corpo.append(acoes);
-
-  const halo = elemento("div", "halo"); halo.style.backgroundImage = fundoHalo(av.cores);
-  const capa = elemento("div", "capa-g");
-  if (/^https:\/\//.test(m.capa_url || "")) capa.style.backgroundImage = `url("${m.capa_url}")`; else capa.textContent = "♪";
-  halo.append(capa);
-  caixa.append(corpo, halo); item.append(caixa);
+  caixa.append(corpo, lado); item.append(caixa);
   caixa.onclick = (ev) => { if (!ev.target.closest(".pill, .apagar, .autor")) abrirAvaliacao(av); };
+  if (av.previa) item.append(bolhaPrevia(av));
   return item;
 }
 
@@ -748,6 +792,7 @@ function capturarTela() {
   if (!$("tela-avaliacao").hidden) { const av = pl.av; return () => abrirAvaliacao(av, true); }
   if (!$("tela-buscar").hidden) return () => mostrar("tela-buscar");
   if (!$("tela-ver-perfil").hidden) { const id = perfilAberto; return () => abrirPerfil(id, true); }
+  if (!$("tela-conversa").hidden) { const a = conv.av, id = conv.foco ? conv.foco.id : null, pl2 = [...pilhaConv]; return () => { pilhaConv = pl2; abrirConversa(a, id, "voltar"); }; }
   return () => ir("inicio");
 }
 $("av-voltar").onclick = () => (origemAv || (() => ir("inicio")))();
@@ -759,7 +804,7 @@ const dadosPerfil = DEMO ? {
     const base = id === eu.id ? 0 : ({ x1: 12, x2: 5, x3: 1 })[id] || 0;
     return { perfil: p, seguidores: base + (SEGUINDO_DEMO.has(id) ? 1 : 0), seguindo: id === eu.id ? SEGUINDO_DEMO.size : 3, euSigo: SEGUINDO_DEMO.has(id), preferida: PREFERIDAS_DEMO[id] || null };
   },
-  async avaliacoes(id) { return AVALIACOES_DEMO.filter((a) => a.usuario_id === id).map((a) => ({ ...a, autor: a.autor || (id === eu.id ? eu.perfil : PERFIS_DEMO[id]) })); },
+  async avaliacoes(id) { return AVALIACOES_DEMO.filter((a) => a.usuario_id === id).map((a) => comDemo({ ...a, autor: a.autor || (id === eu.id ? eu.perfil : PERFIS_DEMO[id]) })); },
   async buscar(q) { const t = q.toLowerCase(); return Object.values(PERFIS_DEMO).filter((p) => !t || p.nome_usuario.toLowerCase().includes(t)); },
   async seguir(id) { SEGUINDO_DEMO.add(id); },
   async deixar(id) { SEGUINDO_DEMO.delete(id); }
@@ -919,6 +964,173 @@ function abrirBuscar() { mostrar("tela-buscar"); carregarPessoas(); }
 $("bu-q").addEventListener("input", () => { clearTimeout(esperaBusca); esperaBusca = setTimeout(carregarPessoas, 300); });
 $("bu-q").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); clearTimeout(esperaBusca); carregarPessoas(); } });
 $("bu-ir").onclick = carregarPessoas;
+
+
+// =====================================================================
+// COMENTÁRIOS (conversas estilo Twitter: um nível por vez)
+// =====================================================================
+const normCom = (r) => ({
+  id: r.id, avaliacao_id: r.avaliacao_id, pai_id: r.comentario_pai_id || null, usuario_id: r.usuario_id,
+  autor: { nome_usuario: r.nome_usuario, foto_url: r.foto_url }, texto: r.texto, criado_em: r.criado_em,
+  pontuacao: r.pontuacao || 0, minha: r.minha || null, respostas: r.respostas || 0, responde_a: r.responde_a || null
+});
+const dadosCom = DEMO ? {
+  async lista(avId, paiId) { return COMENTARIOS_DEMO.filter((c) => c.avaliacao_id === avId && (c.pai_id || null) === (paiId || null)).map((c) => ({ ...c, autor: autorDemo(c.usuario_id), respostas: respostasDemo(c.id) })); },
+  async foco(id) {
+    const c = COMENTARIOS_DEMO.find((x) => x.id === id); if (!c) return null;
+    return { ...c, autor: autorDemo(c.usuario_id), respostas: respostasDemo(c.id), responde_a: respondeADemo(c) };
+  },
+  async comentar(avId, paiId, texto) { COMENTARIOS_DEMO.push({ id: "c" + Date.now() + Math.random(), avaliacao_id: avId, pai_id: paiId || null, usuario_id: eu.id, texto, criado_em: new Date().toISOString(), pontuacao: 0, minha: null }); },
+  async apagar(id) { const ids = new Set(), colher = (i) => { ids.add(i); COMENTARIOS_DEMO.filter((c) => c.pai_id === i).forEach((c) => colher(c.id)); }; colher(id); COMENTARIOS_DEMO.splice(0, COMENTARIOS_DEMO.length, ...COMENTARIOS_DEMO.filter((c) => !ids.has(c.id))); },
+  async reagir(c, tipo) {
+    const o = COMENTARIOS_DEMO.find((x) => x.id === c.id), v = (m) => (m === "curtir" ? 1 : m === "discordar" ? -1 : 0), nova = o.minha === tipo ? null : tipo;
+    o.pontuacao = Math.max(0, o.pontuacao + v(nova) - v(o.minha)); o.minha = nova; return { minha: nova, pontuacao: o.pontuacao };
+  },
+  async total(avId) { return COMENTARIOS_DEMO.filter((c) => c.avaliacao_id === avId).length; }
+} : {
+  async lista(avId, paiId) { const { data, error } = await sb.rpc("conversa_comentarios", { p_avaliacao_id: avId, p_pai_id: paiId || null }); if (error) throw error; return data.map((r) => normCom({ ...r, avaliacao_id: avId, comentario_pai_id: paiId || null })); },
+  async foco(id) { const { data, error } = await sb.rpc("comentario_foco", { p_id: id }); if (error) throw error; return data && data[0] ? normCom(data[0]) : null; },
+  async comentar(avId, paiId, texto) { const { error } = await sb.from("comentarios").insert({ avaliacao_id: avId, comentario_pai_id: paiId || null, texto }); if (error) throw error; },
+  async apagar(id) { const { error } = await sb.from("comentarios").delete().eq("id", id); if (error) throw error; },
+  async reagir(c, tipo) {
+    const r = c.minha === tipo ? await sb.rpc("remover_reacao", { p_comentario_id: c.id }) : await sb.rpc("reagir", { p_tipo: tipo, p_comentario_id: c.id });
+    if (r.error) throw r.error;
+    const { data } = await sb.from("comentarios_placar").select("pontuacao").eq("comentario_id", c.id).maybeSingle();
+    return { minha: c.minha === tipo ? null : tipo, pontuacao: data ? data.pontuacao : 0 };
+  },
+  async total(avId) { const { data } = await sb.from("avaliacoes_comentarios").select("total").eq("avaliacao_id", avId).maybeSingle(); return data ? data.total : 0; }
+};
+
+let conv = { av: null, foco: null }, pilhaConv = [], versaoConv = 0, alvoApagar = null;
+const COM_MAX = 1000;
+const avisoConv = (t) => { const a = $("conv-aviso"); a.textContent = t || ""; a.hidden = !t; };
+const podeApagar = (c) => c.usuario_id === eu.id || (conv.av && conv.av.usuario_id === eu.id);
+
+// Abre a conversa de uma avaliação (comentarioId vazio) ou de um comentário em destaque.
+// modo: "novo" (vem de fora), "dentro" (desce/sobe um nível), "voltar" (restaura sem mexer no histórico).
+function abrirConversa(av, comentarioId = null, modo = "novo") {
+  if (modo === "novo") pilhaConv = [capturarTela()];
+  else if (modo === "dentro") { const a = conv.av, id = conv.foco ? conv.foco.id : null; pilhaConv.push(() => abrirConversa(a, id, "voltar")); }
+  conv = { av, foco: null, focoId: comentarioId };
+  mostrar("tela-conversa"); carregarConversa();
+}
+function voltarConv() { const f = pilhaConv.pop(); if (f) f(); else ir("inicio"); }
+$("voltar-conv").onclick = voltarConv;
+
+function pillsCom(c) {
+  const box = elemento("div", "acoes"), cur = elemento("button", "pill curtir"), dis = elemento("button", "pill discordar");
+  cur.type = dis.type = "button";
+  cur.innerHTML = '<span class="icone i-estrela"></span><span class="n"></span>'; dis.innerHTML = '<span class="icone i-discordar"></span>';
+  cur.setAttribute("aria-label", "Curtir"); dis.setAttribute("aria-label", "Discordar");
+  const pintar = () => { cur.querySelector(".n").textContent = c.pontuacao; cur.setAttribute("aria-pressed", String(c.minha === "curtir")); dis.setAttribute("aria-pressed", String(c.minha === "discordar")); };
+  const reagir = async (tipo, b) => {
+    b.classList.add("ocupado");
+    try { const r = await dadosCom.reagir(c, tipo); c.minha = r.minha; c.pontuacao = r.pontuacao; pintar(); }
+    catch (e) { console.error(e); erro("erro-conversa", "Não foi possível registrar sua reação agora."); }
+    b.classList.remove("ocupado");
+  };
+  cur.onclick = (ev) => { ev.stopPropagation(); reagir("curtir", cur); }; dis.onclick = (ev) => { ev.stopPropagation(); reagir("discordar", dis); };
+  pintar(); box.append(cur, dis); return box;
+}
+function pillRespostas(c, aoClicar) {
+  const b = elemento("button", "pill coment"); b.type = "button"; b.innerHTML = '<span class="icone i-comentario"></span><span class="n"></span>';
+  b.querySelector(".n").textContent = c.respostas; b.setAttribute("aria-label", c.respostas + " respostas");
+  b.onclick = (ev) => { ev.stopPropagation(); aoClicar(); }; return b;
+}
+function cartaoCom(c, destaque) {
+  const d = elemento("div", "com" + (destaque ? " foco" : "")), cab = elemento("div", "cab");
+  const quem = elemento("button", "autor-com"); quem.type = "button";
+  const av = elemento("div", "avatar"); pintarAvatar(av, c.autor); quem.append(av, elemento("span", "nome", "@" + ((c.autor && c.autor.nome_usuario) || "alguém")));
+  quem.onclick = (ev) => { ev.stopPropagation(); abrirPerfil(c.usuario_id); };
+  cab.append(quem, elemento("span", "t", tempoRelativo(c.criado_em)));
+  d.append(cab, elemento("p", "texto-c", c.texto));
+  const acoes = pillsCom(c);
+  acoes.append(pillRespostas(c, () => (destaque ? $("texto-com").focus() : abrirConversa(conv.av, c.id, "dentro"))));
+  if (podeApagar(c)) { const ap = elemento("button", "apagar", "Apagar"); ap.type = "button"; ap.onclick = (ev) => { ev.stopPropagation(); pedirApagar(c); }; acoes.append(ap); }
+  d.append(acoes);
+  if (!destaque) { d.classList.add("clicavel"); d.onclick = () => abrirConversa(conv.av, c.id, "dentro"); }
+  return d;
+}
+function desenharContexto() {
+  const ctx = $("conv-contexto"); ctx.textContent = "";
+  const emFoco = !!conv.foco;
+  $("conv-titulo").textContent = emFoco ? "Conversa" : "Comentários";
+  $("texto-com").placeholder = emFoco ? "Responder a @" + conv.foco.autor.nome_usuario + "..." : "Escreva um comentário...";
+  $("enviar-com").textContent = emFoco ? "Responder" : "Comentar";
+  if (!emFoco) {
+    const av = conv.av, m = av.musica || {}, r = elemento("div", "resumo"), corpo = elemento("div", "corpo"), autor = elemento("div", "autor"), avt = elemento("div", "avatar");
+    pintarAvatar(avt, av.autor); autor.append(avt, elemento("span", "nome", "@" + ((av.autor && av.autor.nome_usuario) || "alguém")));
+    corpo.append(autor, elemento("h3", "", m.titulo || "Música"), estrelasLeitura(av.nota));
+    const halo = elemento("div", "halo"), capa = elemento("div", "capa-g"); halo.style.backgroundImage = fundoHalo(av.cores);
+    if (/^https:\/\//.test(m.capa_url || "")) capa.style.backgroundImage = `url("${m.capa_url}")`; else capa.textContent = "♪";
+    halo.append(capa); r.append(corpo, halo); r.onclick = () => abrirAvaliacao(av); ctx.append(r);
+  } else {
+    const p = elemento("p", "contexto"), b = elemento("button", "", conv.foco.pai_id ? "Ver o comentário anterior" : "Ver todos os comentários"); b.type = "button";
+    b.onclick = () => abrirConversa(conv.av, conv.foco.pai_id || null, "dentro");
+    p.append(document.createTextNode("Respondendo a "), elemento("b", "", "@" + (conv.foco.responde_a || "alguém")), document.createTextNode(" · "), b);
+    ctx.append(p, cartaoCom(conv.foco, true));
+  }
+}
+const ordenarCom = (l) => {
+  const f = { recentes: (a, b) => b.criado_em.localeCompare(a.criado_em), antigos: (a, b) => a.criado_em.localeCompare(b.criado_em),
+    curtidas: (a, b) => b.pontuacao - a.pontuacao || b.criado_em.localeCompare(a.criado_em) }[$("ordem-com").value];
+  return [...l].sort(f);
+};
+function desenharListaCom() {
+  const lista = $("conv-lista"); lista.textContent = "";
+  ordenarCom(conv.itens || []).forEach((c) => lista.append(cartaoCom(c, false)));
+  const vazio = $("conv-vazio"); vazio.hidden = (conv.itens || []).length > 0;
+  vazio.textContent = conv.foco ? "Ninguém respondeu ainda. Seja a primeira pessoa." : "Ainda não há comentários. Seja a primeira pessoa a comentar.";
+}
+async function carregarConversa() {
+  const v = ++versaoConv; erro("erro-conversa"); avisoConv("Carregando..."); $("conv-lista").textContent = ""; $("conv-vazio").hidden = true;
+  try {
+    const foco = conv.focoId ? await dadosCom.foco(conv.focoId) : null;
+    if (v !== versaoConv) return;
+    if (conv.focoId && !foco) { avisoConv(""); return voltarConv(); }       // o comentário foi apagado
+    conv.foco = foco; conv.itens = await dadosCom.lista(conv.av.id, foco ? foco.id : null);
+    if (v !== versaoConv) return;
+    avisoConv(""); desenharContexto(); desenharListaCom();
+  } catch (e) {
+    console.error("Erro ao carregar comentários:", e);
+    if (v === versaoConv) avisoConv("Não foi possível carregar os comentários agora. Tente de novo." + (e && e.message ? " (" + e.message + ")" : ""));
+  }
+}
+async function atualizarTotalCartao() {
+  try { conv.av.comentarios = await dadosCom.total(conv.av.id); if (conv.av._pintarCom) conv.av._pintarCom(); } catch (e) { console.error(e); }
+}
+$("ordem-com").onchange = desenharListaCom;
+$("texto-com").addEventListener("input", () => { const t = $("texto-com"); $("contador-com").textContent = t.value.length + "/" + COM_MAX; $("enviar-com").disabled = !t.value.trim(); });
+$("enviar-com").onclick = async () => {
+  const texto = $("texto-com").value.trim(); if (!texto) return;
+  const b = $("enviar-com"); b.disabled = true; erro("erro-conversa");
+  try {
+    await dadosCom.comentar(conv.av.id, conv.foco ? conv.foco.id : null, texto);
+    $("texto-com").value = ""; $("texto-com").dispatchEvent(new Event("input"));
+    await carregarConversa(); await atualizarTotalCartao();
+  } catch (e) {
+    console.error(e); erro("erro-conversa", semConexao(e) ? "Não consegui falar com o servidor. Tente de novo em instantes." : "Não foi possível publicar o comentário agora. Tente de novo.");
+    b.disabled = false;
+  }
+};
+
+// ---- apagar (com confirmação) ----
+function pedirApagar(c) {
+  alvoApagar = c;
+  $("m-p").textContent = c.respostas ? `As ${c.respostas} respostas dele também serão apagadas.` : "Esta ação não pode ser desfeita.";
+  $("modal").hidden = false; $("m-cancelar").focus();
+}
+function fecharModal() { $("modal").hidden = true; alvoApagar = null; }
+$("m-cancelar").onclick = fecharModal;
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("modal").hidden) fecharModal(); });
+$("m-apagar").onclick = async () => {
+  const c = alvoApagar; fecharModal(); if (!c) return;
+  try {
+    await dadosCom.apagar(c.id);
+    if (conv.foco && conv.foco.id === c.id) voltarConv(); else await carregarConversa();
+    await atualizarTotalCartao();
+  } catch (e) { console.error(e); erro("erro-conversa", "Não foi possível apagar agora. Tente de novo."); }
+};
 
 sb.auth.onAuthStateChange((evento) => { if (evento === "SIGNED_OUT") mostrar("tela-entrar"); });
 rotear();
