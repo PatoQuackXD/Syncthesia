@@ -158,6 +158,24 @@
     <div class="dica vazio" id="pf-aviso" hidden></div>
   </section>
 
+  <!-- CONVERSA (comentários de uma avaliação ou de um comentário) -->
+  <section id="tela-conversa" hidden>
+    <button class="voltar" id="voltar-conv" type="button" aria-label="Voltar"><span class="icone i-voltar"></span></button>
+    <h1 class="titulo" id="conv-titulo">Comentários</h1>
+    <div id="conv-contexto"></div>
+    <div class="painel compor">
+      <div class="msg erro" id="erro-conversa" hidden></div>
+      <textarea class="campo" id="texto-com" maxlength="1000" placeholder="Escreva um comentário..."></textarea>
+      <div class="compor-rodape"><span id="contador-com">0/1000</span><button class="botao" id="enviar-com" type="button" disabled>Comentar</button></div>
+    </div>
+    <label class="ordem">Ordem:
+      <select id="ordem-com"><option value="recentes">Recentes</option><option value="curtidas">Mais curtidas</option><option value="antigos">Mais antigos</option></select>
+    </label>
+    <div id="conv-lista"></div>
+    <div class="dica vazio" id="conv-vazio" hidden></div>
+    <div class="dica vazio" id="conv-aviso" hidden></div>
+  </section>
+
   <!-- TELA DA AVALIAÇÃO (abre ao clicar num cartão do feed) -->
   <section id="tela-avaliacao" hidden>
     <div class="topo-av">
@@ -182,6 +200,226 @@
   </section>
 
 </main>
+<div id="modal" hidden><div class="caixa-modal" role="dialog" aria-modal="true" aria-labelledby="m-t">
+  <h2 id="m-t">Apagar comentário?</h2><p id="m-p"></p>
+  <button class="botao" id="m-apagar" type="button" style="background:var(--vermelho);color:#fff">Apagar</button>
+  <button class="link" id="m-cancelar" type="button">Cancelar</button>
+</div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<button id="fab-add" type="button" aria-label="Adicionar avaliação" hidden>+</button>
+<script src="https://cdn.jsdelivr.net/npm/@simonwep/pickr@1.9.1/dist/pickr.min.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html><!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light">
+<title>Syncthesia</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Syne:wght@800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@simonwep/pickr@1.9.1/dist/themes/classic.min.css">
+<link rel="stylesheet" href="tema.css">
+</head>
+<body>
+<div id="aviso-demo" class="demo" hidden>Modo demonstração: nada é salvo de verdade (falta preencher o config.js)</div>
+<canvas id="neb" hidden aria-hidden="true"></canvas>
+<main class="app">
+
+  <!-- Cabeçalho das telas de dentro (o "FEED ⌄" do protótipo) -->
+  <header id="topo" hidden>
+    <button class="topo-titulo" id="topo-titulo" type="button" aria-haspopup="true" aria-expanded="false"><span id="topo-nome">FEED</span> ⌄</button>
+    <span class="topo-logo">Syncthesia</span>
+    <nav id="menu" hidden>
+      <button type="button" data-ir="inicio">Feed</button>
+      <button type="button" data-ir="adicionar">Adicionar avaliação</button>
+      <button type="button" data-ir="buscar">Buscar pessoas</button>
+      <button type="button" data-ir="perfil">Meu perfil</button>
+      <button type="button" id="menu-sair">Sair</button>
+    </nav>
+  </header>
+
+  <!-- ENTRAR -->
+  <section id="tela-entrar" hidden>
+    <div class="logo">Syncthesia</div>
+    <h1 class="titulo">Entrar</h1>
+    <form class="painel" id="form-entrar" novalidate>
+      <div class="msg erro" id="erro-entrar" hidden></div>
+      <input class="campo" id="entrar-email" type="email" placeholder="E-mail" autocomplete="email" required>
+      <input class="campo" id="entrar-senha" type="password" placeholder="Senha" autocomplete="current-password" required>
+      <button class="botao" type="submit">Entrar</button>
+    </form>
+    <button class="link" id="ir-cadastro" type="button">Não tem conta? <u>Criar conta</u></button>
+  </section>
+
+  <!-- CRIAR CONTA -->
+  <section id="tela-cadastro" hidden>
+    <button class="voltar" id="voltar-entrar" type="button" aria-label="Voltar"><span class="icone i-voltar"></span></button>
+    <h1 class="titulo">Criar conta</h1>
+    <form class="painel" id="form-cadastro" novalidate>
+      <div class="msg erro" id="erro-cadastro" hidden></div>
+      <div class="msg ok" id="ok-cadastro" hidden></div>
+      <input class="campo" id="cad-email" type="email" placeholder="E-mail" autocomplete="email" required>
+      <input class="campo" id="cad-senha" type="password" placeholder="Senha (mínimo 8 caracteres)" autocomplete="new-password" required>
+      <label class="marcar"><input type="checkbox" id="cad-idade"> <span>Declaro que tenho 18 anos ou mais.</span></label>
+      <button class="botao" type="submit">Criar conta</button>
+    </form>
+  </section>
+
+  <!-- CRIAR PERFIL (primeiro acesso) -->
+  <section id="tela-perfil" hidden>
+    <h1 class="titulo" id="perfil-titulo">Seu perfil</h1>
+    <div class="capa">
+      <div class="banner" id="previa-banner"></div>
+      <div class="foto" id="previa-foto">?</div>
+    </div>
+    <form class="painel" id="form-perfil" novalidate>
+      <div class="msg erro" id="erro-perfil" hidden></div>
+      <div class="arquivo">
+        <label>Foto <input type="file" id="arq-foto" accept="image/jpeg,image/png,image/webp"></label>
+        <label>Banner <input type="file" id="arq-banner" accept="image/jpeg,image/png,image/webp"></label>
+      </div>
+      <label class="rotulo" for="perfil-nome">Nome de usuário</label>
+      <input class="campo" id="perfil-nome" placeholder="ex.: maria_musica" maxlength="20" autocomplete="off">
+      <div class="dica">3 a 20 caracteres: letras, números, _ e ponto.</div>
+      <label class="rotulo" for="perfil-bio">Bio (opcional)</label>
+      <textarea class="campo" id="perfil-bio" maxlength="200" placeholder="Conte um pouco sobre seu gosto musical"></textarea>
+      <button class="botao" type="submit">Salvar perfil</button>
+      <button class="link" id="cancelar-perfil" type="button" hidden>ou <u>Cancelar</u></button>
+    </form>
+  </section>
+
+  <!-- INÍCIO = FEED -->
+  <section id="tela-inicio" hidden>
+    <div class="msg ok" id="aviso-inicio" hidden></div>
+    <div class="abas" role="tablist" aria-label="Abas do feed">
+      <button class="aba" type="button" role="tab" data-aba="global">Global</button>
+      <button class="aba" type="button" role="tab" data-aba="seguidos">Seguidos</button>
+      <button class="aba aba-hit" type="button" role="tab" data-aba="hit">HIT</button>
+    </div>
+    <p class="dica hit-info" id="hit-info" hidden>Lista fixa, escolhida às 12h (horário de Brasília) entre as avaliações das 24h anteriores. A próxima seleção é às 12h do dia seguinte.</p>
+    <div id="feed"></div>
+    <div class="dica vazio" id="feed-aviso" hidden></div>
+    <button class="botao cinza" id="feed-mais" type="button" hidden>Carregar mais</button>
+  </section>
+
+  <!-- ADICIONAR AVALIAÇÃO -->
+  <section id="tela-adicionar" hidden>
+    <div class="busca">
+      <input class="campo" id="busca-q" placeholder="Busque a música" maxlength="100" autocomplete="off">
+      <button type="button" id="busca-ir" aria-label="Buscar"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg></button>
+    </div>
+    <div class="dica" id="busca-aviso" hidden></div>
+    <div id="resultados"></div>
+
+    <h2 class="subtitulo">Escolha 3 cores diferentes:</h2>
+    <div class="cores"><div id="cor-a"></div><div id="cor-b"></div><div id="cor-c"></div></div>
+    <div class="dica" id="dica-cores"></div>
+
+    <label class="marcar" id="bloco-postar" hidden><input type="checkbox" id="postar-tambem"> <span>Também publicar como avaliação no feed</span></label>
+    <div class="painel nota" id="painel-nota">
+      <div class="estrelas" id="estrelas" role="slider" tabindex="0" aria-label="Nota" aria-valuemin="0" aria-valuemax="5" aria-valuestep="0.5" aria-valuenow="0"></div>
+      <div class="nota-valor" id="nota-valor"></div>
+      <textarea class="campo" id="critica" maxlength="2000" placeholder="Opiniões sobre a música? (opcional)"></textarea>
+    </div>
+
+    <div class="msg erro" id="erro-adicionar" hidden></div>
+    <div class="dica" id="dica-envio" style="text-align:center"></div>
+    <button class="botao" id="enviar-av" type="button" disabled>Submeter</button>
+    <button class="link" id="cancelar-av" type="button">ou <u>Cancelar</u></button>
+  </section>
+
+  <!-- BUSCAR PESSOAS -->
+  <section id="tela-buscar" hidden>
+    <div class="busca">
+      <input class="campo" id="bu-q" placeholder="Buscar pessoas pelo @" maxlength="20" autocomplete="off">
+      <button type="button" id="bu-ir" aria-label="Buscar"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg></button>
+    </div>
+    <h2 class="subtitulo" id="bu-titulo">Pessoas novas</h2>
+    <div id="bu-lista"></div>
+    <div class="dica vazio" id="bu-aviso" hidden></div>
+  </section>
+
+  <!-- PERFIL (o seu e o dos outros) -->
+  <section id="tela-ver-perfil" hidden>
+    <div class="capa tela-cheia">
+      <div class="banner" id="pf-banner"></div>
+      <button class="flut esq" id="pf-voltar" type="button" aria-label="Voltar"><span class="icone i-voltar"></span></button>
+      <button class="flut dir" id="pf-editar" type="button" aria-label="Editar perfil" hidden>✎</button>
+      <div class="tempo-conta" id="pf-tempo"></div>
+      <div class="foto" id="pf-foto"></div>
+    </div>
+    <h1 class="pf-nome" id="pf-nome"></h1>
+    <p class="pf-bio" id="pf-bio"></p>
+    <p class="pf-numeros"><span><b id="pf-seguidores">0</b> seguidores</span><span><b id="pf-seguindo">0</b> seguindo</span></p>
+    <button class="botao amarelo pf-seguir" id="pf-seguir" type="button" hidden>Seguir</button>
+
+    <div class="pref" id="pf-pref" hidden>
+      <b class="pref-rotulo">Música preferida:</b>
+      <div class="pref-corpo" id="pf-pref-corpo" role="button" tabindex="0" aria-label="Abrir a música preferida e ouvir a prévia"><div class="halo" id="pf-pref-halo"><div class="capa-g" id="pf-pref-capa"></div></div>
+        <div class="pref-texto"><h3 id="pf-pref-titulo"></h3><p id="pf-pref-sub"></p></div></div>
+    </div>
+    <button class="botao cinza" id="pf-definir" type="button" hidden>Definir música preferida</button>
+
+    <label class="ordem">Ordem:
+      <select id="pf-ordem"><option value="recentes">Recentes</option><option value="curtidas">Mais curtidas</option><option value="nota">Maior nota</option></select>
+    </label>
+    <div id="pf-lista"></div>
+    <div class="dica vazio" id="pf-aviso" hidden></div>
+  </section>
+
+  <!-- CONVERSA (comentários de uma avaliação ou de um comentário) -->
+  <section id="tela-conversa" hidden>
+    <button class="voltar" id="voltar-conv" type="button" aria-label="Voltar"><span class="icone i-voltar"></span></button>
+    <h1 class="titulo" id="conv-titulo">Comentários</h1>
+    <div id="conv-contexto"></div>
+    <div class="painel compor">
+      <div class="msg erro" id="erro-conversa" hidden></div>
+      <textarea class="campo" id="texto-com" maxlength="1000" placeholder="Escreva um comentário..."></textarea>
+      <div class="compor-rodape"><span id="contador-com">0/1000</span><button class="botao" id="enviar-com" type="button" disabled>Comentar</button></div>
+    </div>
+    <label class="ordem">Ordem:
+      <select id="ordem-com"><option value="recentes">Recentes</option><option value="curtidas">Mais curtidas</option><option value="antigos">Mais antigos</option></select>
+    </label>
+    <div id="conv-lista"></div>
+    <div class="dica vazio" id="conv-vazio" hidden></div>
+    <div class="dica vazio" id="conv-aviso" hidden></div>
+  </section>
+
+  <!-- TELA DA AVALIAÇÃO (abre ao clicar num cartão do feed) -->
+  <section id="tela-avaliacao" hidden>
+    <div class="topo-av">
+      <button class="voltar" id="av-voltar" type="button" aria-label="Voltar ao feed"><span class="icone i-voltar"></span></button>
+      <span class="topo-logo">Syncthesia</span><span class="espaco-av"></span>
+    </div>
+    <div class="cartao-av">
+      <div class="capa-av" id="av-capa"></div>
+      <h2 id="av-titulo"></h2>
+      <p class="sub2" id="av-sub"></p>
+      <div id="av-estrelas"></div>
+      <div class="player">
+        <button class="play grande" id="av-play" type="button" aria-label="Tocar prévia de 30 segundos" disabled>▶</button>
+        <div class="barra"><i id="av-prog"></i></div>
+        <span id="av-tempo">0:00 / 0:30</span>
+      </div>
+      <p class="dica" id="av-aviso" style="margin:6px 4px"></p>
+      <div class="cores-av" id="av-cores"></div>
+      <div class="quem" id="av-quem"><button class="nick" id="av-autor" type="button"></button><span id="av-quando"></span></div>
+      <p class="texto-av" id="av-critica"></p>
+    </div>
+  </section>
+
+</main>
+<div id="modal" hidden><div class="caixa-modal" role="dialog" aria-modal="true" aria-labelledby="m-t">
+  <h2 id="m-t">Apagar comentário?</h2><p id="m-p"></p>
+  <button class="botao" id="m-apagar" type="button" style="background:var(--vermelho);color:#fff">Apagar</button>
+  <button class="link" id="m-cancelar" type="button">Cancelar</button>
+</div></div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <button id="fab-add" type="button" aria-label="Adicionar avaliação" hidden>+</button>
 <script src="https://cdn.jsdelivr.net/npm/@simonwep/pickr@1.9.1/dist/pickr.min.js"></script>
