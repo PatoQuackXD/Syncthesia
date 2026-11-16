@@ -278,7 +278,7 @@ async function chamarApi(caminho, opc = {}) {
   if (!resp.ok) throw new Error((json && json.erro) || `Servidor indisponível (erro ${resp.status}).`);
   return json;
 }
-const CODIGO_DEMO = "demo";                     // no modo demonstração o código é: demo
+const CODIGO_DEMO = "demo";                     // no modo demonstração o código é: demo (digite //demo na busca)
 const textos = DEMO ? {
   async contar(ids) {
     return Object.fromEntries(ids.map((id) => {
@@ -359,6 +359,7 @@ function linhaMusica(m, { escolhida = false } = {}) {
 // --- busca ---
 async function buscarMusicas() {
   const q = $("busca-q").value.trim(); erro("erro-adicionar");
+  if (eCodigo(q)) return tentarCodigo(q);
   if (q.length < 2) return mostrarAviso("Digite pelo menos 2 letras.");
   const lista = $("resultados"); lista.textContent = "Buscando...";
   const demora = setTimeout(() => mostrarAviso("O servidor pode estar acordando: na primeira busca isso leva até 1 minuto."), 6000);
@@ -454,7 +455,7 @@ function validarAdicionar() {
 function iniciarAdicionar(modo = "avaliacao") {
   Object.assign(add, { modo, musica: null, nota: 0, notaTocada: false, cores: [null, null, null], texto: false, codigo: null });
   $("bloco-avaliacao").hidden = false; $("bloco-texto").hidden = true; $("texto-livre").value = ""; $("contador-livre").textContent = "0/2000";
-  $("bloco-codigo").hidden = modo === "preferida"; $("form-codigo").hidden = true; $("abrir-codigo").hidden = false; $("codigo").value = ""; erro("erro-codigo");
+  $("busca-q").type = "text";
   NOMES_TELA["tela-adicionar"] = modo === "preferida" ? "MÚSICA PREFERIDA" : "ADICIONAR";
   $("bloco-postar").hidden = modo !== "preferida"; $("postar-tambem").checked = false; $("enviar-av").textContent = modo === "preferida" ? "Salvar" : "Submeter";
   $("busca-q").value = ""; $("resultados").textContent = ""; mostrarAviso(""); $("critica").value = ""; erro("erro-adicionar");
@@ -466,25 +467,31 @@ $("postar-tambem").onchange = validarAdicionar;
 // --- modo texto (liberado por código) ---
 function definirModoTexto(sim) {
   add.texto = sim; pararPrevia(); erro("erro-adicionar");
-  $("bloco-avaliacao").hidden = sim; $("bloco-texto").hidden = !sim; $("bloco-codigo").hidden = sim || add.modo === "preferida";
+  $("bloco-avaliacao").hidden = sim; $("bloco-texto").hidden = !sim;
   NOMES_TELA["tela-adicionar"] = sim ? "TEXTO" : add.modo === "preferida" ? "MÚSICA PREFERIDA" : "ADICIONAR"; $("topo-nome").textContent = NOMES_TELA["tela-adicionar"];
   $("enviar-av").textContent = sim ? "Publicar" : add.modo === "preferida" ? "Salvar" : "Submeter";
   validarAdicionar(); if (sim) $("texto-livre").focus();
 }
-$("abrir-codigo").onclick = () => { $("abrir-codigo").hidden = true; $("form-codigo").hidden = false; $("codigo").focus(); };
-async function liberarCodigo() {
-  const cod = $("codigo").value.trim(); erro("erro-codigo");
-  if (!cod) return erro("erro-codigo", "Digite o código.");
-  const b = $("liberar-codigo"); b.disabled = true;
+// O código se digita no próprio campo de busca de música, com o prefixo "//" (ex.: //meucodigo).
+// Busca normal nunca conta como tentativa; resposta errada parece uma busca sem resultado.
+const PREFIXO_CODIGO = "//";
+const eCodigo = (q) => add.modo !== "preferida" && q.startsWith(PREFIXO_CODIGO);
+async function tentarCodigo(q) {
+  const cod = q.slice(PREFIXO_CODIGO.length).trim(), lista = $("resultados");
+  lista.textContent = ""; mostrarAviso("");
+  if (!cod) return mostrarAviso("Nenhuma música encontrada.");
+  $("busca-ir").disabled = true;
   try {
     const r = await textos.validar(cod);
-    if (r && r.ok) { add.codigo = cod; $("codigo").value = ""; $("form-codigo").hidden = true; $("abrir-codigo").hidden = false; definirModoTexto(true); }
-    else erro("erro-codigo", r && r.erro === "limite" ? "Muitas tentativas erradas. Espere alguns minutos." : "Código incorreto.");
-  } catch (e) { erro("erro-codigo", semConexao(e) ? "Não consegui falar com o servidor. Tente de novo em instantes." : traduzir(e)); }
-  b.disabled = false;
+    if (r && r.ok) { add.codigo = cod; $("busca-q").value = ""; $("busca-q").type = "text"; definirModoTexto(true); }
+    else mostrarAviso("Nenhuma música encontrada.");
+  } catch (e) {
+    console.error("Código:", e);
+    mostrarAviso(semConexao(e) ? "Não consegui falar com o servidor. Tente de novo em instantes." : "Nenhuma música encontrada.");
+  }
+  $("busca-ir").disabled = false;
 }
-$("liberar-codigo").onclick = liberarCodigo;
-$("codigo").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); liberarCodigo(); } });
+$("busca-q").addEventListener("input", () => { $("busca-q").type = eCodigo($("busca-q").value) ? "password" : "text"; });   // esconde o código enquanto digita
 $("sair-modo-texto").onclick = () => { add.codigo = null; definirModoTexto(false); };
 $("texto-livre").addEventListener("input", () => { $("contador-livre").textContent = $("texto-livre").value.length + "/2000"; validarAdicionar(); });
 
@@ -493,7 +500,7 @@ async function publicarTexto() {
   try {
     const r = await textos.postar(add.codigo, texto);
     if (!r || !r.ok) {
-      erro("erro-adicionar", r && r.erro === "limite" ? "Muitas tentativas erradas. Espere alguns minutos." : "O código não foi aceito. Libere o modo texto de novo.");
+      erro("erro-adicionar", r && r.erro === "limite" ? "Muitas tentativas erradas. Espere alguns minutos." : "O código não foi aceito. Digite o código de novo na busca.");
       if (!r || r.erro !== "limite") { add.codigo = null; definirModoTexto(false); }
       return;
     }
