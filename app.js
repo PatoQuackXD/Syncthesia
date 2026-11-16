@@ -12,7 +12,9 @@ const AVALIACOES_DEMO = [
   { id: "d2", hit: true, musica_id: "seed-2", usuario_id: "x2", autor: { nome_usuario: "bruno.vinil" }, musica: { titulo: "Something About Us", artista: "Daft Punk", album: "Discovery" },
     nota: 4.5, critica: "Na cara, não pra não estragar o funeral.", cores: ["#2B3FA8", "#1F7A4A", "#0B0B1E"], primeira: true, reavaliacao: false, criado_em: new Date(Date.now() - 2 * 864e5).toISOString(), pontuacao: 18, minha: null },
   { id: "d3", musica_id: "seed-3", usuario_id: "x3", autor: { nome_usuario: "ana_ouve" }, musica: { titulo: "Eu Ouço Vozes", artista: "Artista Exemplo", album: "Álbum Exemplo", explicita: true },
-    nota: 3.5, critica: null, cores: ["#E0208F", "#00B8D9", "#F2C500"], primeira: false, reavaliacao: false, criado_em: new Date(Date.now() - 7 * 864e5).toISOString(), pontuacao: 0, minha: null }
+    nota: 3.5, critica: null, cores: ["#E0208F", "#00B8D9", "#F2C500"], primeira: false, reavaliacao: false, criado_em: new Date(Date.now() - 7 * 864e5).toISOString(), pontuacao: 0, minha: null },
+  { id: "d4", tipo: "texto", usuario_id: "x2", autor: { nome_usuario: "bruno.vinil" }, musica: {}, nota: null,
+    critica: "Aviso da casa: sexta tem noite de vinil. Levem seus discos favoritos.", cores: [null, null, null], criado_em: new Date(Date.now() - 5 * 36e5).toISOString(), pontuacao: 3, minha: null }
 ];
 
 const dias = (n) => new Date(Date.now() - n * 864e5).toISOString();
@@ -276,12 +278,36 @@ async function chamarApi(caminho, opc = {}) {
   if (!resp.ok) throw new Error((json && json.erro) || `Servidor indisponível (erro ${resp.status}).`);
   return json;
 }
+const CODIGO_DEMO = "demo";                     // no modo demonstração o código é: demo
+const textos = DEMO ? {
+  async contar(ids) {
+    return Object.fromEntries(ids.map((id) => {
+      const m = MUSICAS_DEMO.find((x) => x.deezer_id === String(id));
+      return [String(id), AVALIACOES_DEMO.filter((a) => (a.tipo || "avaliacao") === "avaliacao" && m && a.musica && a.musica.titulo === m.titulo).length];
+    }));
+  },
+  async validar(codigo) { return codigo === CODIGO_DEMO ? { ok: true } : { ok: false, erro: "codigo" }; },
+  async postar(codigo, texto) {
+    if (codigo !== CODIGO_DEMO) return { ok: false, erro: "codigo" };
+    AVALIACOES_DEMO.unshift({ id: "demo-t" + (AVALIACOES_DEMO.length + 1), tipo: "texto", usuario_id: eu.id, autor: eu.perfil, musica: {}, nota: null,
+      critica: texto, cores: [null, null, null], criado_em: new Date().toISOString(), pontuacao: 0, minha: null });
+    return { ok: true };
+  }
+} : {
+  async contar(ids) {                            // quantas avaliações cada música já tem no site
+    const { data, error } = await sb.rpc("contar_avaliacoes", { p_deezer_ids: ids.map(String) });
+    if (error) throw error;
+    return Object.fromEntries((data || []).map((x) => [String(x.deezer_id), Number(x.total)]));
+  },
+  async validar(codigo) { const { data, error } = await sb.rpc("validar_codigo_texto", { p_codigo: codigo }); if (error) throw error; return data; },
+  async postar(codigo, texto) { const { data, error } = await sb.rpc("postar_texto", { p_codigo: codigo, p_texto: texto }); if (error) throw error; return data; }
+};
 const semConexao = (e) => /failed to fetch|networkerror|load failed/i.test(e.message || "");
 
 // =====================================================================
 // ADICIONAR AVALIAÇÃO
 // =====================================================================
-const add = { musica: null, nota: 0, notaTocada: false, cores: [null, null, null] };
+const add = { musica: null, nota: 0, notaTocada: false, cores: [null, null, null], texto: false, codigo: null };
 const seletores = [];
 const COR_NEUTRA = "#cccccc";
 
@@ -301,6 +327,14 @@ function tocarPrevia(url, botao) {
   const p = audioAtual.play(); if (p && p.catch) p.catch(falhou);
 }
 
+const textoContagem = (n) => (n === 0 ? "Ainda não avaliada no site" : n === 1 ? "Avaliada 1 vez no site" : `Avaliada ${n} vezes no site`);
+async function carregarContagens(linhas) {       // preenche "Avaliada N vezes" sem travar a lista
+  try {
+    const mapa = await textos.contar(linhas.map(([m]) => m.deezer_id));
+    linhas.forEach(([m, li]) => { m.total_av = mapa[String(m.deezer_id)] || 0; const c = li.querySelector(".contagem"); if (c) c.textContent = textoContagem(m.total_av); });
+  } catch (e) { console.error("Contagem de avaliações:", e); }
+}
+
 // --- uma linha de música (usada na lista e na música escolhida) ---
 function linhaMusica(m, { escolhida = false } = {}) {
   const li = document.createElement("div"); li.className = "res" + (escolhida ? " sel" : "");
@@ -310,7 +344,9 @@ function linhaMusica(m, { escolhida = false } = {}) {
   const t = document.createElement("b"); t.textContent = m.titulo;
   if (m.explicita) { const e = document.createElement("span"); e.className = "selo-e"; e.textContent = "E"; t.append(e); }
   const s = document.createElement("small"); s.textContent = [m.artista, m.album].filter(Boolean).join(" · ");
-  info.append(t, s); li.append(capa, info);
+  const cont = document.createElement("small"); cont.className = "contagem";
+  if (m.total_av != null) cont.textContent = textoContagem(m.total_av);
+  info.append(t, s, cont); li.append(capa, info);
   if (m.previa_url && /^https:\/\//.test(m.previa_url)) {
     const b = document.createElement("button"); b.type = "button"; b.className = "play"; b.textContent = "▶";
     b.setAttribute("aria-label", "Tocar prévia de 30 segundos");
@@ -331,7 +367,9 @@ async function buscarMusicas() {
     const { resultados } = await chamarApi("/api/buscar?q=" + encodeURIComponent(q));
     lista.textContent = ""; mostrarAviso("");
     if (!resultados.length) return mostrarAviso("Nenhuma música encontrada.");
-    resultados.forEach((m) => { const li = linhaMusica(m); li.onclick = () => escolherMusica(m); lista.append(li); });
+    const linhas = [];
+    resultados.forEach((m) => { const li = linhaMusica(m); li.onclick = () => escolherMusica(m); lista.append(li); linhas.push([m, li]); });
+    carregarContagens(linhas);
   } catch (e) {
     lista.textContent = "";
     mostrarAviso(semConexao(e) ? "Não consegui falar com o servidor. Tente de novo em instantes." : e.message);
@@ -399,6 +437,10 @@ $("estrelas").addEventListener("keydown", (e) => {
 const mesmaCor = (a, b) => a.slice(0, 7).toLowerCase() === b.slice(0, 7).toLowerCase();
 const precisaNota = () => add.modo === "avaliacao" || $("postar-tambem").checked;
 function validarAdicionar() {
+  if (add.texto) {                                 // modo texto: só precisa de texto
+    const vazio = !$("texto-livre").value.trim();
+    $("dica-envio").textContent = vazio ? "Escreva alguma coisa." : ""; $("enviar-av").disabled = vazio; return;
+  }
   const c = add.cores, faltam = c.filter((x) => !x).length;
   const repetida = !faltam && (mesmaCor(c[0], c[1]) || mesmaCor(c[0], c[2]) || mesmaCor(c[1], c[2]));
   $("dica-cores").textContent = repetida ? "As 3 cores precisam ser diferentes." : faltam === 3 ? "Toque em cada quadrado para escolher uma cor." : faltam ? `Faltam ${faltam} cor(es).` : "";
@@ -410,7 +452,9 @@ function validarAdicionar() {
   $("dica-envio").textContent = falta; $("enviar-av").disabled = !!falta;
 }
 function iniciarAdicionar(modo = "avaliacao") {
-  Object.assign(add, { modo, musica: null, nota: 0, notaTocada: false, cores: [null, null, null] });
+  Object.assign(add, { modo, musica: null, nota: 0, notaTocada: false, cores: [null, null, null], texto: false, codigo: null });
+  $("bloco-avaliacao").hidden = false; $("bloco-texto").hidden = true; $("texto-livre").value = ""; $("contador-livre").textContent = "0/2000";
+  $("bloco-codigo").hidden = modo === "preferida"; $("form-codigo").hidden = true; $("abrir-codigo").hidden = false; $("codigo").value = ""; erro("erro-codigo");
   NOMES_TELA["tela-adicionar"] = modo === "preferida" ? "MÚSICA PREFERIDA" : "ADICIONAR";
   $("bloco-postar").hidden = modo !== "preferida"; $("postar-tambem").checked = false; $("enviar-av").textContent = modo === "preferida" ? "Salvar" : "Submeter";
   $("busca-q").value = ""; $("resultados").textContent = ""; mostrarAviso(""); $("critica").value = ""; erro("erro-adicionar");
@@ -419,8 +463,51 @@ function iniciarAdicionar(modo = "avaliacao") {
 $("cancelar-av").onclick = () => (add.modo === "preferida" ? abrirPerfil(eu.id, true) : ir("inicio"));
 $("postar-tambem").onchange = validarAdicionar;
 
+// --- modo texto (liberado por código) ---
+function definirModoTexto(sim) {
+  add.texto = sim; pararPrevia(); erro("erro-adicionar");
+  $("bloco-avaliacao").hidden = sim; $("bloco-texto").hidden = !sim; $("bloco-codigo").hidden = sim || add.modo === "preferida";
+  NOMES_TELA["tela-adicionar"] = sim ? "TEXTO" : add.modo === "preferida" ? "MÚSICA PREFERIDA" : "ADICIONAR"; $("topo-nome").textContent = NOMES_TELA["tela-adicionar"];
+  $("enviar-av").textContent = sim ? "Publicar" : add.modo === "preferida" ? "Salvar" : "Submeter";
+  validarAdicionar(); if (sim) $("texto-livre").focus();
+}
+$("abrir-codigo").onclick = () => { $("abrir-codigo").hidden = true; $("form-codigo").hidden = false; $("codigo").focus(); };
+async function liberarCodigo() {
+  const cod = $("codigo").value.trim(); erro("erro-codigo");
+  if (!cod) return erro("erro-codigo", "Digite o código.");
+  const b = $("liberar-codigo"); b.disabled = true;
+  try {
+    const r = await textos.validar(cod);
+    if (r && r.ok) { add.codigo = cod; $("codigo").value = ""; $("form-codigo").hidden = true; $("abrir-codigo").hidden = false; definirModoTexto(true); }
+    else erro("erro-codigo", r && r.erro === "limite" ? "Muitas tentativas erradas. Espere alguns minutos." : "Código incorreto.");
+  } catch (e) { erro("erro-codigo", semConexao(e) ? "Não consegui falar com o servidor. Tente de novo em instantes." : traduzir(e)); }
+  b.disabled = false;
+}
+$("liberar-codigo").onclick = liberarCodigo;
+$("codigo").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); liberarCodigo(); } });
+$("sair-modo-texto").onclick = () => { add.codigo = null; definirModoTexto(false); };
+$("texto-livre").addEventListener("input", () => { $("contador-livre").textContent = $("texto-livre").value.length + "/2000"; validarAdicionar(); });
+
+async function publicarTexto() {
+  const botao = $("enviar-av"), texto = $("texto-livre").value.trim(); botao.disabled = true;
+  try {
+    const r = await textos.postar(add.codigo, texto);
+    if (!r || !r.ok) {
+      erro("erro-adicionar", r && r.erro === "limite" ? "Muitas tentativas erradas. Espere alguns minutos." : "O código não foi aceito. Libere o modo texto de novo.");
+      if (!r || r.erro !== "limite") { add.codigo = null; definirModoTexto(false); }
+      return;
+    }
+    const aviso = $("aviso-inicio"); aviso.hidden = false; aviso.textContent = "Texto publicado!";
+    aba = "global"; mostrar("tela-inicio");
+  } catch (e) {
+    erro("erro-adicionar", semConexao(e) ? "Não consegui falar com o servidor. Tente de novo em instantes." : (e.message && !e.code) ? e.message : traduzir(e));
+    validarAdicionar();
+  }
+}
+
 $("enviar-av").onclick = async () => {
   erro("erro-adicionar"); validarAdicionar(); if ($("enviar-av").disabled) return;
+  if (add.texto) return publicarTexto();
   const botao = $("enviar-av"); botao.disabled = true; pararPrevia();
   try {
     const { musica } = await chamarApi("/api/musicas", { method: "POST", body: { deezer_id: add.musica.deezer_id } });
@@ -455,7 +542,7 @@ $("enviar-av").onclick = async () => {
 const ABA_PADRAO = "global";            // quando houver bastante gente, troque para "hit"
 const TAM_PAGINA = 20;
 const eu = { id: null, perfil: null };
-const SELECT_AV = "id,musica_id,nota,critica,cor1,cor2,cor3,eh_reavaliacao,eh_primeira_da_musica,criado_em,usuario_id," +
+const SELECT_AV = "id,tipo,musica_id,nota,critica,cor1,cor2,cor3,eh_reavaliacao,eh_primeira_da_musica,criado_em,usuario_id," +
   "perfis(nome_usuario,foto_url),musicas(titulo,artista,album,capa_url,explicita)";
 
 // ---- acesso aos dados (no modo demonstração usa a lista de exemplo) ----
@@ -475,7 +562,7 @@ async function completar(linhas) {
   const placar = Object.fromEntries((pl.data || []).map((x) => [x.avaliacao_id, x.pontuacao]));
   const minhas = Object.fromEntries((re.data || []).map((x) => [x.avaliacao_id, x.tipo]));
   return linhas.map((l) => ({
-    id: l.id, musica_id: l.musica_id, nota: Number(l.nota), critica: l.critica, cores: [l.cor1, l.cor2, l.cor3],
+    id: l.id, tipo: l.tipo || "avaliacao", musica_id: l.musica_id, nota: l.nota == null ? null : Number(l.nota), critica: l.critica, cores: [l.cor1, l.cor2, l.cor3],
     reavaliacao: l.eh_reavaliacao, primeira: l.eh_primeira_da_musica, criado_em: l.criado_em, usuario_id: l.usuario_id,
     autor: l.perfis || {}, musica: l.musicas || {}, pontuacao: placar[l.id] || 0, minha: minhas[l.id] || null, hit: hits.has(l.id), comentarios: totais[l.id] || 0, previa: previas[l.id] || null
   }));
@@ -514,7 +601,7 @@ const dados = DEMO ? {
     const { data, error: e2 } = await sb.from("avaliacoes").select(SELECT_AV).in("id", h.map((x) => x.avaliacao_id));
     if (e2) throw e2;
     const ordem = Object.fromEntries(h.map((x) => [x.avaliacao_id, x.posicao]));
-    const itens = (await completar(data)).sort((a, b) => ordem[a.id] - ordem[b.id]);
+    const itens = (await completar(data)).filter((a) => a.tipo !== "texto").sort((a, b) => ordem[a.id] - ordem[b.id]);
     itens.forEach((a) => { a.hit = true; });
     return { itens, mais: false };
   },
@@ -572,7 +659,8 @@ function bolhaPrevia(av) {
 
 function cartao(av, opc = {}) {
   const item = elemento("div", "item");
-  const tags = [[av.hit, "hit", "HIT"], [av.primeira, "primeira", "#1 Avaliação"], [av.reavaliacao, "reav", "Re-avaliação"]];
+  const ehTexto = av.tipo === "texto";            // publicação de texto livre: sem música, nota, cores ou prévia
+  const tags = ehTexto ? [] : [[av.hit, "hit", "HIT"], [av.primeira, "primeira", "#1 Avaliação"], [av.reavaliacao, "reav", "Re-avaliação"]];
   tags.filter((t) => t[0]).forEach((t) => item.append(elemento("span", "tag " + t[1], t[2])));
 
   const caixa = elemento("article", "av"), corpo = elemento("div", "corpo");
@@ -583,11 +671,14 @@ function cartao(av, opc = {}) {
   autor.append(avatar, elemento("span", "nome", "@" + nome));
 
   const m = av.musica || {};
-  const titulo = elemento("h3"), abrir = elemento("button", "abrir", m.titulo || "Música"); abrir.type = "button"; titulo.append(abrir);
-  if (m.explicita) titulo.append(elemento("span", "selo-e", "E"));
-  corpo.append(autor, titulo, elemento("p", "sub2", [m.artista, m.album].filter(Boolean).join(" – ")));
-  if (av.critica) corpo.append(elemento("p", "texto", av.critica));
-  corpo.append(estrelasLeitura(av.nota));
+  if (ehTexto) corpo.append(autor, elemento("p", "texto livre", av.critica || ""));
+  else {
+    const titulo = elemento("h3"), abrir = elemento("button", "abrir", m.titulo || "Música"); abrir.type = "button"; titulo.append(abrir);
+    if (m.explicita) titulo.append(elemento("span", "selo-e", "E"));
+    corpo.append(autor, titulo, elemento("p", "sub2", [m.artista, m.album].filter(Boolean).join(" – ")));
+    if (av.critica) corpo.append(elemento("p", "texto", av.critica));
+    corpo.append(estrelasLeitura(av.nota));
+  }
 
   const acoes = elemento("div", "acoes");
   const curtir = elemento("button", "pill curtir"), discordar = elemento("button", "pill discordar"), coment = elemento("button", "pill coment");
@@ -613,22 +704,25 @@ function cartao(av, opc = {}) {
   acoes.append(curtir, discordar, coment);
   corpo.append(acoes);
 
-  const halo = elemento("div", "halo"); halo.style.backgroundImage = fundoHalo(av.cores);
-  const capa = elemento("div", "capa-g");
-  if (/^https:\/\//.test(m.capa_url || "")) capa.style.backgroundImage = `url("${m.capa_url}")`; else capa.textContent = "♪";
-  halo.append(capa);
-  const lado = elemento("div", "lado"); lado.append(halo, elemento("span", "quando", tempoRelativo(av.criado_em)));
+  const lado = elemento("div", "lado");
+  if (!ehTexto) {
+    const halo = elemento("div", "halo"); halo.style.backgroundImage = fundoHalo(av.cores);
+    const capa = elemento("div", "capa-g");
+    if (/^https:\/\//.test(m.capa_url || "")) capa.style.backgroundImage = `url("${m.capa_url}")`; else capa.textContent = "♪";
+    halo.append(capa); lado.append(halo);
+  }
+  lado.append(elemento("span", "quando", tempoRelativo(av.criado_em)));
   if (av.usuario_id === eu.id) {
     const ap = elemento("button", "apagar", "Apagar"); ap.type = "button";
     ap.onclick = async () => {
-      if (!confirm("Apagar esta avaliação? Os comentários dela também serão apagados.")) return;
+      if (!confirm(ehTexto ? "Apagar este texto? Os comentários dele também serão apagados." : "Apagar esta avaliação? Os comentários dela também serão apagados.")) return;
       try { await dados.apagar(av.id); item.remove(); if (!$("feed").children.length) avisoFeed(VAZIO[aba]); }
       catch (e) { console.error(e); avisoFeed("Não foi possível apagar agora."); }
     };
     lado.append(ap);
   }
   caixa.append(corpo, lado); item.append(caixa);
-  caixa.onclick = (ev) => { if (!ev.target.closest(".pill, .apagar, .autor")) abrirAvaliacao(av); };
+  caixa.onclick = (ev) => { if (!ev.target.closest(".pill, .apagar, .autor")) (ehTexto ? abrirConversa(av) : abrirAvaliacao(av)); };
   if (av.previa) item.append(bolhaPrevia(av));
   return item;
 }
@@ -1060,10 +1154,14 @@ function desenharContexto() {
   if (!emFoco) {
     const av = conv.av, m = av.musica || {}, r = elemento("div", "resumo"), corpo = elemento("div", "corpo"), autor = elemento("div", "autor"), avt = elemento("div", "avatar");
     pintarAvatar(avt, av.autor); autor.append(avt, elemento("span", "nome", "@" + ((av.autor && av.autor.nome_usuario) || "alguém")));
-    corpo.append(autor, elemento("h3", "", m.titulo || "Música"), estrelasLeitura(av.nota));
-    const halo = elemento("div", "halo"), capa = elemento("div", "capa-g"); halo.style.backgroundImage = fundoHalo(av.cores);
-    if (/^https:\/\//.test(m.capa_url || "")) capa.style.backgroundImage = `url("${m.capa_url}")`; else capa.textContent = "♪";
-    halo.append(capa); r.append(corpo, halo); r.onclick = () => abrirAvaliacao(av); ctx.append(r);
+    if (av.tipo === "texto") {                       // texto livre: mostra o texto, sem música nem prévia
+      corpo.append(autor, elemento("p", "texto-resumo", av.critica || "")); r.append(corpo); r.style.cursor = "default"; ctx.append(r);
+    } else {
+      corpo.append(autor, elemento("h3", "", m.titulo || "Música"), estrelasLeitura(av.nota));
+      const halo = elemento("div", "halo"), capa = elemento("div", "capa-g"); halo.style.backgroundImage = fundoHalo(av.cores);
+      if (/^https:\/\//.test(m.capa_url || "")) capa.style.backgroundImage = `url("${m.capa_url}")`; else capa.textContent = "♪";
+      halo.append(capa); r.append(corpo, halo); r.onclick = () => abrirAvaliacao(av); ctx.append(r);
+    }
   } else {
     const p = elemento("p", "contexto"), b = elemento("button", "", conv.foco.pai_id ? "Ver o comentário anterior" : "Ver todos os comentários"); b.type = "button";
     b.onclick = () => abrirConversa(conv.av, conv.foco.pai_id || null, "dentro");
