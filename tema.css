@@ -256,7 +256,4 @@ button.autor-com{display:flex;align-items:center;gap:10px;background:none;border
 /* ---- publicação de texto livre (modo código) ---- */
 .av .texto.livre{font-size:1rem;margin-top:12px}
 .resumo .texto-resumo{margin:6px 0 0;overflow-wrap:anywhere;white-space:pre-wrap}
-.link-codigo{font-weight:500;font-size:.85rem;color:#555;margin-top:18px}
-#form-codigo{margin-top:6px}
-#form-codigo .campo{margin-bottom:10px}
 #bloco-texto .painel.compor{margin-top:6px}
