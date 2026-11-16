@@ -248,3 +248,15 @@ button.autor-com{display:flex;align-items:center;gap:10px;background:none;border
 #modal{position:fixed;inset:0;background:#0008;display:grid;place-items:center;z-index:50;padding:20px}
 .caixa-modal{background:var(--branco);border-radius:28px;padding:22px;max-width:340px;width:100%}
 .caixa-modal h2{margin:0 0 8px;font-size:1.2rem}.caixa-modal p{margin:0 0 14px}
+
+/* ---- contagem de avaliações na busca de música ---- */
+.res small.contagem{font-weight:700;color:#222;margin-top:2px}
+.res small.contagem:empty{display:none}
+
+/* ---- publicação de texto livre (modo código) ---- */
+.av .texto.livre{font-size:1rem;margin-top:12px}
+.resumo .texto-resumo{margin:6px 0 0;overflow-wrap:anywhere;white-space:pre-wrap}
+.link-codigo{font-weight:500;font-size:.85rem;color:#555;margin-top:18px}
+#form-codigo{margin-top:6px}
+#form-codigo .campo{margin-bottom:10px}
+#bloco-texto .painel.compor{margin-top:6px}
