@@ -2,7 +2,7 @@
 const cfg = window.SYNC_CONFIG || {};
 const DEMO = !cfg.SUPABASE_URL || cfg.SUPABASE_URL.startsWith("COLE");
 const $ = (id) => document.getElementById(id);
-const TELAS = ["tela-entrar", "tela-cadastro", "tela-perfil", "tela-inicio", "tela-adicionar", "tela-avaliacao", "tela-buscar", "tela-ver-perfil", "tela-conversa"];
+const TELAS = ["tela-entrar", "tela-cadastro", "tela-perfil", "tela-inicio", "tela-adicionar", "tela-avaliacao", "tela-buscar", "tela-ver-perfil", "tela-pessoas", "tela-conversa"];
 const API_URL = (cfg.API_URL || "https://meu-backend-jf73.onrender.com").replace(/\/$/, "");
 
 // Avaliações de exemplo (modo demonstração): o feed e o "banco" falso usam a mesma lista.
@@ -894,17 +894,29 @@ function capturarTela() {
   if (!$("tela-avaliacao").hidden) { const av = pl.av; return () => abrirAvaliacao(av, true); }
   if (!$("tela-buscar").hidden) return () => mostrar("tela-buscar");
   if (!$("tela-ver-perfil").hidden) { const id = perfilAberto; return () => abrirPerfil(id, true); }
+  if (!$("tela-pessoas").hidden) { const l = { ...listaPessoas }; return () => abrirPessoas(l.dono, l.tipo, l.nome, l.origem); }
   if (!$("tela-conversa").hidden) { const a = conv.av, id = conv.foco ? conv.foco.id : null, pl2 = [...pilhaConv]; return () => { pilhaConv = pl2; abrirConversa(a, id, "voltar"); }; }
   return () => ir("inicio");
 }
 $("av-voltar").onclick = () => (origemAv || (() => ir("inicio")))();
 
 // ---- acesso aos dados ----
+// demo: quem segue quem (as pessoas de exemplo seguem umas às outras; x1 e x2 seguem você)
+function idsListaDemo(id, tipo) {
+  const outros = Object.keys(PERFIS_DEMO).filter((k) => k !== id);
+  if (tipo === "seguindo") return id === eu.id ? [...SEGUINDO_DEMO] : outros;
+  return id === eu.id ? ["x1", "x2"] : outros.concat(SEGUINDO_DEMO.has(id) ? [eu.id] : []);
+}
+const blocos = (a, n = 100) => { const r = []; for (let i = 0; i < a.length; i += n) r.push(a.slice(i, i + n)); return r; };
 const dadosPerfil = DEMO ? {
   async obter(id) {
     const p = id === eu.id ? eu.perfil : PERFIS_DEMO[id]; if (!p) return null;
-    const base = id === eu.id ? 0 : ({ x1: 12, x2: 5, x3: 1 })[id] || 0;
-    return { perfil: p, seguidores: base + (SEGUINDO_DEMO.has(id) ? 1 : 0), seguindo: id === eu.id ? SEGUINDO_DEMO.size : 3, euSigo: SEGUINDO_DEMO.has(id), preferida: PREFERIDAS_DEMO[id] || null };
+    return { perfil: p, seguidores: idsListaDemo(id, "seguidores").length, seguindo: idsListaDemo(id, "seguindo").length, euSigo: SEGUINDO_DEMO.has(id), preferida: PREFERIDAS_DEMO[id] || null };
+  },
+  async lista(id, tipo) {                          // quem segue / quem é seguido por essa pessoa
+    const todos = { ...PERFIS_DEMO, [eu.id]: eu.perfil };
+    const pessoas = idsListaDemo(id, tipo).map((i) => todos[i]).filter(Boolean).sort((x, y) => x.nome_usuario.localeCompare(y.nome_usuario));
+    return { pessoas, sigo: new Set(SEGUINDO_DEMO), cheio: false };
   },
   async avaliacoes(id) { return AVALIACOES_DEMO.filter((a) => a.usuario_id === id).map((a) => comDemo({ ...a, autor: a.autor || (id === eu.id ? eu.perfil : PERFIS_DEMO[id]) })); },
   async buscar(q) { const t = q.toLowerCase(); return Object.values(PERFIS_DEMO).filter((p) => !t || p.nome_usuario.toLowerCase().includes(t)); },
@@ -923,6 +935,21 @@ const dadosPerfil = DEMO ? {
     const pr = d.data;
     return { perfil, seguidores: a.count || 0, seguindo: b.count || 0, euSigo: !!c.data,
       preferida: pr ? { musica_id: pr.musica_id, musica: pr.musicas || {}, cores: [pr.cor1, pr.cor2, pr.cor3], avaliacao_id: pr.avaliacao_id } : null };
+  },
+  async lista(id, tipo) {                          // quem segue / quem é seguido por essa pessoa
+    const [col, outra] = tipo === "seguidores" ? ["seguido_id", "seguidor_id"] : ["seguidor_id", "seguido_id"];
+    const { data: rel, error } = await sb.from("seguidores").select(outra).eq(col, id).limit(1000);
+    if (error) throw error;
+    const ids = rel.map((r) => r[outra]);
+    if (!ids.length) return { pessoas: [], sigo: new Set(), cheio: false };
+    const partes = await Promise.all(blocos(ids).map((b) => Promise.all([
+      sb.from("perfis").select("id,nome_usuario,bio,foto_url").in("id", b),
+      sb.from("seguidores").select("seguido_id").eq("seguidor_id", eu.id).in("seguido_id", b)
+    ])));
+    const pessoas = [], sigo = new Set();
+    partes.forEach(([p, s]) => { if (p.error) throw p.error; if (s.error) throw s.error; pessoas.push(...p.data); s.data.forEach((r) => sigo.add(r.seguido_id)); });
+    pessoas.sort((x, y) => x.nome_usuario.localeCompare(y.nome_usuario));
+    return { pessoas, sigo, cheio: ids.length >= 1000 };
   },
   async avaliacoes(id) {
     const { data, error } = await sb.from("avaliacoes").select(SELECT_AV).eq("usuario_id", id).order("criado_em", { ascending: false }).limit(50);
@@ -1008,6 +1035,51 @@ $("pf-seguir").onclick = async () => {
   } catch (e) { console.error(e); avisoPerfil("Não foi possível atualizar agora. Tente de novo."); }
   b.disabled = false;
 };
+
+// ---- lista de seguidores / seguindo (clicando nos números do perfil) ----
+let listaPessoas = { dono: null, tipo: null, nome: "", origem: null }, versaoLista = 0;
+const avisoPessoas = (t) => { const x = $("ps-aviso"); x.textContent = t || ""; x.hidden = !t; };
+async function abrirPessoas(id, tipo, nome, origem = voltarPara) {
+  const v = ++versaoLista; listaPessoas = { dono: id, tipo, nome, origem };
+  mostrar("tela-pessoas");
+  $("ps-titulo").textContent = tipo === "seguidores" ? "Seguidores" : "Seguindo"; $("ps-sub").textContent = "@" + nome;
+  $("ps-lista").textContent = ""; avisoPessoas("Carregando...");
+  try {
+    const { pessoas, sigo, cheio } = await dadosPerfil.lista(id, tipo);
+    if (v !== versaoLista) return;                          // a pessoa já saiu desta lista
+    const lista = $("ps-lista"); lista.textContent = ""; avisoPessoas("");
+    pessoas.forEach((p) => {
+      const linha = elemento("div", "pessoa linha"), ver = elemento("button", "pessoa-ver"), av = elemento("div", "avatar"), info = elemento("div", "info");
+      ver.type = "button"; pintarAvatar(av, p); info.append(elemento("b", "", "@" + p.nome_usuario)); if (p.bio) info.append(elemento("small", "", p.bio));
+      ver.append(av, info); ver.onclick = () => abrirPerfil(p.id); linha.append(ver);
+      if (p.id === eu.id) linha.append(elemento("span", "voce", "Você"));
+      else {
+        const b = elemento("button", "seg-btn"); b.type = "button";
+        const pintar = () => { const s = sigo.has(p.id); b.textContent = s ? "Seguindo" : "Seguir"; b.classList.toggle("sigo", s); b.setAttribute("aria-pressed", s); };
+        pintar();
+        b.onclick = async () => {
+          b.disabled = true;
+          try {
+            if (sigo.has(p.id)) { await dadosPerfil.deixar(p.id); sigo.delete(p.id); } else { await dadosPerfil.seguir(p.id); sigo.add(p.id); }
+            pintar(); avisoPessoas("");
+          } catch (e) { console.error(e); avisoPessoas("Não foi possível atualizar agora. Tente de novo."); }
+          b.disabled = false;
+        };
+        linha.append(b);
+      }
+      lista.append(linha);
+    });
+    if (!pessoas.length) avisoPessoas(tipo === "seguidores" ? "Ainda não tem seguidores." : "Ainda não segue ninguém.");
+    else if (cheio) avisoPessoas("Mostrando as primeiras 1000 pessoas.");
+  } catch (e) {
+    console.error("Erro ao abrir a lista:", e);
+    if (v === versaoLista) avisoPessoas("Não foi possível carregar a lista agora. Tente de novo.");
+  }
+}
+const verLista = (tipo) => { if (infoPerfil) abrirPessoas(perfilAberto, tipo, infoPerfil.perfil.nome_usuario); };
+$("pf-ver-seguidores").onclick = () => verLista("seguidores");
+$("pf-ver-seguindo").onclick = () => verLista("seguindo");
+$("ps-voltar").onclick = () => { voltarPara = listaPessoas.origem; abrirPerfil(listaPessoas.dono, true); };
 
 // ---- editar o próprio perfil (reaproveita a tela de criar perfil) ----
 let editandoPerfil = false;
