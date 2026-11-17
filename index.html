@@ -153,7 +153,10 @@
     </div>
     <h1 class="pf-nome" id="pf-nome"></h1>
     <p class="pf-bio" id="pf-bio"></p>
-    <p class="pf-numeros"><span><b id="pf-seguidores">0</b> seguidores</span><span><b id="pf-seguindo">0</b> seguindo</span></p>
+    <p class="pf-numeros">
+      <button class="pf-num" id="pf-ver-seguidores" type="button"><b id="pf-seguidores">0</b> seguidores</button>
+      <button class="pf-num" id="pf-ver-seguindo" type="button"><b id="pf-seguindo">0</b> seguindo</button>
+    </p>
     <button class="botao amarelo pf-seguir" id="pf-seguir" type="button" hidden>Seguir</button>
 
     <div class="pref" id="pf-pref" hidden>
@@ -171,6 +174,15 @@
   </section>
 
   <!-- CONVERSA (comentários de uma avaliação ou de um comentário) -->
+  <!-- LISTA DE SEGUIDORES / SEGUINDO -->
+  <section id="tela-pessoas" hidden>
+    <button class="voltar" id="ps-voltar" type="button" aria-label="Voltar"><span class="icone i-voltar"></span></button>
+    <h1 class="titulo" id="ps-titulo">Seguidores</h1>
+    <h2 class="subtitulo" id="ps-sub"></h2>
+    <div id="ps-lista"></div>
+    <div class="dica vazio" id="ps-aviso" hidden></div>
+  </section>
+
   <section id="tela-conversa" hidden>
     <button class="voltar" id="voltar-conv" type="button" aria-label="Voltar"><span class="icone i-voltar"></span></button>
     <h1 class="titulo" id="conv-titulo">Comentários</h1>
