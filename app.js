@@ -483,6 +483,7 @@ async function tentarCodigo(q) {
   $("busca-ir").disabled = true;
   try {
     const r = await textos.validar(cod);
+    console.info("Código: resposta do servidor ->", r);      // só aparece no Console (F12): ok / codigo / limite / login
     if (r && r.ok) { add.codigo = cod; $("busca-q").value = ""; $("busca-q").type = "text"; definirModoTexto(true); }
     else mostrarAviso("Nenhuma música encontrada.");
   } catch (e) {
