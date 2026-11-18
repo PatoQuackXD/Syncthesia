@@ -98,14 +98,19 @@
   <!-- ADICIONAR AVALIAÇÃO -->
   <section id="tela-adicionar" hidden>
     <div id="bloco-avaliacao">
+    <div class="abas-tipo" id="abas-tipo" role="tablist">
+      <button type="button" class="aba-tipo" role="tab" id="tipo-musica" aria-selected="true">Música</button>
+      <button type="button" class="aba-tipo" role="tab" id="tipo-album" aria-selected="false">Álbum</button>
+    </div>
     <div class="busca">
       <input class="campo" id="busca-q" placeholder="Busque a música" maxlength="100" autocomplete="off">
       <button type="button" id="busca-ir" aria-label="Buscar"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg></button>
     </div>
     <div class="dica" id="busca-aviso" hidden></div>
     <div id="resultados"></div>
+    <div id="album-faixas" hidden></div>
 
-    <h2 class="subtitulo">Escolha 3 cores diferentes:</h2>
+    <h2 class="subtitulo" id="sub-cores">Escolha 3 cores diferentes:</h2>
     <div class="cores"><div id="cor-a"></div><div id="cor-b"></div><div id="cor-c"></div></div>
     <div class="dica" id="dica-cores"></div>
 
@@ -113,6 +118,7 @@
     <div class="painel nota" id="painel-nota">
       <div class="estrelas" id="estrelas" role="slider" tabindex="0" aria-label="Nota" aria-valuemin="0" aria-valuemax="5" aria-valuestep="0.5" aria-valuenow="0"></div>
       <div class="nota-valor" id="nota-valor"></div>
+      <div id="media-album" hidden></div>
       <textarea class="campo" id="critica" maxlength="2000" placeholder="Opiniões sobre a música? (opcional)"></textarea>
     </div>
     </div><!-- /bloco-avaliacao -->
@@ -189,6 +195,24 @@
     <div class="dica vazio" id="ps-aviso" hidden></div>
   </section>
 
+  <!-- ÁLBUM: lista de faixas com nota e cores; prévia de áudio só nas faixas -->
+  <section id="tela-album" hidden>
+    <div class="topo-av">
+      <button class="voltar" id="al-voltar" type="button" aria-label="Voltar"><span class="icone i-voltar"></span></button>
+      <span class="topo-logo">Syncthesia</span><span class="espaco-av"></span>
+    </div>
+    <div class="cartao-av">
+      <div class="capa-av" id="al-capa"></div>
+      <h2 id="al-titulo"></h2>
+      <p class="sub2" id="al-sub"></p>
+      <div id="al-estrelas"></div>
+      <div class="cores-av" id="al-cores"></div>
+      <div class="quem"><button class="nick" id="al-autor" type="button"></button><span id="al-quando"></span></div>
+      <p class="texto-av" id="al-critica"></p>
+      <h3 class="titulo-faixas">Faixas</h3>
+      <div id="al-faixas"></div>
+    </div>
+  </section>
   <section id="tela-conversa" hidden>
     <button class="voltar" id="voltar-conv" type="button" aria-label="Voltar"><span class="icone i-voltar"></span></button>
     <h1 class="titulo" id="conv-titulo">Comentários</h1>
