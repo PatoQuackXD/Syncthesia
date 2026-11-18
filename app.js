@@ -1003,7 +1003,7 @@ let itensPerfil = [];
 async function abrirPerfil(id, semOrigem) {
   if (!semOrigem) voltarPara = capturarTela();
   perfilAberto = id; infoPerfil = null; mostrar("tela-ver-perfil");
-  $("pf-lista").textContent = ""; $("pf-pref").hidden = true; $("pf-seguir").hidden = true; $("pf-editar").hidden = true; $("pf-definir").hidden = true; $("pf-compartilhar").hidden = true;
+  $("pf-lista").textContent = ""; $("pf-pref").hidden = true; $("pf-seguir").hidden = true; $("pf-editar").hidden = true; $("pf-definir").hidden = true; $("pf-compartilhar").hidden = true; $("pf-compartilhar").querySelector(".copiado").hidden = true;
   $("pf-nome").textContent = ""; $("pf-bio").textContent = ""; $("pf-tempo").textContent = ""; $("pf-banner").style.backgroundImage = ""; pintarAvatar($("pf-foto"), null);
   avisoPerfil("Carregando...");
   try {
@@ -1016,7 +1016,7 @@ async function abrirPerfil(id, semOrigem) {
     $("pf-banner").style.backgroundImage = /^https:\/\//.test(p.banner_url || "") ? `url("${p.banner_url}")` : "";
     pintarAvatar($("pf-foto"), p);
     $("pf-seguindo").textContent = info.seguindo; $("pf-seguidores").textContent = info.seguidores;
-    $("pf-editar").hidden = !meu; $("pf-seguir").hidden = meu; if (!meu) pintarSeguir(); $("pf-compartilhar").hidden = false;
+    $("pf-editar").hidden = !meu; $("pf-seguir").hidden = meu; if (!meu) pintarSeguir(); $("pf-compartilhar").hidden = false; $("pf-compartilhar").classList.toggle("ao-lado", meu);
     $("pf-definir").hidden = !meu; $("pf-definir").textContent = info.preferida ? "Trocar música preferida" : "Definir música preferida";
     if (info.preferida) {
       const m = info.preferida.musica || {};
@@ -1339,8 +1339,8 @@ $("pf-compartilhar").onclick = async () => {
   }
   try { await navigator.clipboard.writeText(url); }
   catch (_) { window.prompt("Copie o link do perfil:", url); return; }            // navegador sem acesso à área de transferência
-  b.textContent = "Link copiado!"; clearTimeout(tempoCopiado);
-  tempoCopiado = setTimeout(() => { b.textContent = "Compartilhar perfil"; }, 2200);
+  const aviso = b.querySelector(".copiado"); aviso.hidden = false; clearTimeout(tempoCopiado);
+  tempoCopiado = setTimeout(() => { aviso.hidden = true; }, 2200);
 };
 
 // Quem abre o link sem estar logado entra primeiro e depois cai no perfil.
