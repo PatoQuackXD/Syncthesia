@@ -273,6 +273,7 @@ button.autor-com{display:flex;align-items:center;gap:10px;background:none;border
 .seg-btn:disabled{opacity:.6;cursor:default}
 .pessoa .voce{flex:none;font-size:.8rem;font-weight:700;color:#555;padding:0 6px}
 
-/* ---- compartilhar perfil (ícone discreto no banner) ---- */
-.flut.dir.ao-lado{right:66px}                      /* no seu perfil fica ao lado do lápis de editar */
-.flut .copiado{position:absolute;top:52px;right:0;white-space:nowrap;background:var(--texto);color:#fff;font-size:.75rem;font-weight:700;padding:6px 12px;border-radius:999px;pointer-events:none}
+/* ---- compartilhar perfil: ícone discreto, na mesma linha do "N Dias", do lado oposto ---- */
+.compartilhar{position:absolute;right:11px;bottom:-48px;width:40px;height:40px;border:0;border-radius:50%;background:none;color:var(--texto);cursor:pointer;display:grid;place-items:center;z-index:2}
+.compartilhar:hover,.compartilhar:focus-visible{background:#0000000f}
+.compartilhar .copiado{position:absolute;bottom:46px;right:9px;white-space:nowrap;background:var(--texto);color:#fff;font-size:.75rem;font-weight:700;padding:6px 12px;border-radius:999px;pointer-events:none}
