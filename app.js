@@ -150,11 +150,12 @@ const emailOk = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
 async function rotear() {
   const { data } = await sb.auth.getSession();
   const sessao = data && data.session;
-  if (!sessao) return mostrar("tela-entrar");
+  if (!sessao) { avisoConvite(); return mostrar("tela-entrar"); }
   const { data: perfil } = await sb.from("perfis").select("*").eq("id", sessao.user.id).maybeSingle();
   if (!perfil) return mostrar("tela-perfil");
   eu.id = sessao.user.id; eu.perfil = perfil;
   mostrar("tela-inicio");
+  abrirConvite();
 }
 
 function ocupado(botao, sim) { botao.disabled = sim; }
@@ -919,6 +920,12 @@ const dadosPerfil = DEMO ? {
     return { pessoas, sigo: new Set(SEGUINDO_DEMO), cheio: false };
   },
   async avaliacoes(id) { return AVALIACOES_DEMO.filter((a) => a.usuario_id === id).map((a) => comDemo({ ...a, autor: a.autor || (id === eu.id ? eu.perfil : PERFIS_DEMO[id]) })); },
+  async idPorNome(nome) {
+    const t = nome.toLowerCase();
+    if (eu.perfil && eu.perfil.nome_usuario.toLowerCase() === t) return eu.id;
+    const p = Object.values(PERFIS_DEMO).find((x) => x.nome_usuario.toLowerCase() === t);
+    return p ? p.id : null;
+  },
   async buscar(q) { const t = q.toLowerCase(); return Object.values(PERFIS_DEMO).filter((p) => !t || p.nome_usuario.toLowerCase().includes(t)); },
   async seguir(id) { SEGUINDO_DEMO.add(id); },
   async deixar(id) { SEGUINDO_DEMO.delete(id); }
@@ -935,6 +942,13 @@ const dadosPerfil = DEMO ? {
     const pr = d.data;
     return { perfil, seguidores: a.count || 0, seguindo: b.count || 0, euSigo: !!c.data,
       preferida: pr ? { musica_id: pr.musica_id, musica: pr.musicas || {}, cores: [pr.cor1, pr.cor2, pr.cor3], avaliacao_id: pr.avaliacao_id } : null };
+  },
+  async idPorNome(nome) {                          // ilike ignora maiúsculas; \_ e \% evitam que "_" funcione como curinga
+    const { data, error } = await sb.from("perfis").select("id,nome_usuario").ilike("nome_usuario", nome.replace(/[\\%_]/g, "\\$&")).limit(5);
+    if (error) throw error;
+    const achados = (data || []).filter((p) => p.nome_usuario.toLowerCase() === nome.toLowerCase());
+    const exato = achados.find((p) => p.nome_usuario === nome) || achados[0];
+    return exato ? exato.id : null;
   },
   async lista(id, tipo) {                          // quem segue / quem é seguido por essa pessoa
     const [col, outra] = tipo === "seguidores" ? ["seguido_id", "seguidor_id"] : ["seguidor_id", "seguido_id"];
@@ -989,7 +1003,7 @@ let itensPerfil = [];
 async function abrirPerfil(id, semOrigem) {
   if (!semOrigem) voltarPara = capturarTela();
   perfilAberto = id; infoPerfil = null; mostrar("tela-ver-perfil");
-  $("pf-lista").textContent = ""; $("pf-pref").hidden = true; $("pf-seguir").hidden = true; $("pf-editar").hidden = true; $("pf-definir").hidden = true;
+  $("pf-lista").textContent = ""; $("pf-pref").hidden = true; $("pf-seguir").hidden = true; $("pf-editar").hidden = true; $("pf-definir").hidden = true; $("pf-compartilhar").hidden = true;
   $("pf-nome").textContent = ""; $("pf-bio").textContent = ""; $("pf-tempo").textContent = ""; $("pf-banner").style.backgroundImage = ""; pintarAvatar($("pf-foto"), null);
   avisoPerfil("Carregando...");
   try {
@@ -1002,7 +1016,7 @@ async function abrirPerfil(id, semOrigem) {
     $("pf-banner").style.backgroundImage = /^https:\/\//.test(p.banner_url || "") ? `url("${p.banner_url}")` : "";
     pintarAvatar($("pf-foto"), p);
     $("pf-seguindo").textContent = info.seguindo; $("pf-seguidores").textContent = info.seguidores;
-    $("pf-editar").hidden = !meu; $("pf-seguir").hidden = meu; if (!meu) pintarSeguir();
+    $("pf-editar").hidden = !meu; $("pf-seguir").hidden = meu; if (!meu) pintarSeguir(); $("pf-compartilhar").hidden = false;
     $("pf-definir").hidden = !meu; $("pf-definir").textContent = info.preferida ? "Trocar música preferida" : "Definir música preferida";
     if (info.preferida) {
       const m = info.preferida.musica || {};
@@ -1309,6 +1323,55 @@ $("m-apagar").onclick = async () => {
     await atualizarTotalCartao();
   } catch (e) { console.error(e); erro("erro-conversa", "Não foi possível apagar agora. Tente de novo."); }
 };
+
+// =====================================================================
+// COMPARTILHAR PERFIL (link: seusite/?u=nome_de_usuario)
+// =====================================================================
+const linkPerfil = (nome) => location.origin + location.pathname + "?u=" + encodeURIComponent(nome);
+let tempoCopiado = null;
+$("pf-compartilhar").onclick = async () => {
+  if (!infoPerfil) return;
+  const b = $("pf-compartilhar"), nome = infoPerfil.perfil.nome_usuario, url = linkPerfil(nome);
+  const celular = window.matchMedia && matchMedia("(pointer: coarse)").matches;   // celular: folha de compartilhar; computador: copia o link
+  if (celular && navigator.share) {
+    try { await navigator.share({ title: "@" + nome + " no Syncthesia", text: "Veja o perfil de @" + nome + " no Syncthesia", url }); return; }
+    catch (e) { if (e && e.name === "AbortError") return; }                      // fechou a folha: nada a fazer; outro erro: copia o link
+  }
+  try { await navigator.clipboard.writeText(url); }
+  catch (_) { window.prompt("Copie o link do perfil:", url); return; }            // navegador sem acesso à área de transferência
+  b.textContent = "Link copiado!"; clearTimeout(tempoCopiado);
+  tempoCopiado = setTimeout(() => { b.textContent = "Compartilhar perfil"; }, 2200);
+};
+
+// Quem abre o link sem estar logado entra primeiro e depois cai no perfil.
+const CHAVE_CONVITE = "syncthesia_perfil_pendente";
+let conviteMemoria = null;
+(function lerConvite() {
+  const u = new URLSearchParams(location.search).get("u");
+  if (u === null) return;
+  history.replaceState(null, "", location.pathname + location.hash);              // limpa o ?u= da barra de endereço
+  if (!/^[A-Za-z0-9_.]{3,20}$/.test(u)) return;
+  conviteMemoria = u;
+  try { localStorage.setItem(CHAVE_CONVITE, JSON.stringify({ nome: u, ate: Date.now() + 864e5 })); } catch (_) {}   // guarda por 24 h (cadastro com e-mail de confirmação)
+})();
+function pegarConvite() {
+  if (conviteMemoria) return conviteMemoria;
+  try { const c = JSON.parse(localStorage.getItem(CHAVE_CONVITE) || "null"); if (c && c.nome && c.ate > Date.now()) return c.nome; } catch (_) {}
+  return null;
+}
+function limparConvite() { conviteMemoria = null; try { localStorage.removeItem(CHAVE_CONVITE); } catch (_) {} }
+function avisoConvite() {
+  const nome = pegarConvite();
+  document.querySelectorAll(".aviso-convite").forEach((el) => { el.hidden = !nome; if (nome) el.textContent = "Entre ou crie sua conta para ver o perfil de @" + nome + "."; });
+}
+const ID_INEXISTENTE = "00000000-0000-0000-0000-000000000000";                    // faz a tela de perfil mostrar "Perfil não encontrado."
+async function abrirConvite() {
+  const nome = pegarConvite(); if (!nome) return;
+  limparConvite();
+  let id = null;
+  try { id = await dadosPerfil.idPorNome(nome); } catch (e) { console.error("Link de perfil:", e); }
+  abrirPerfil(id || ID_INEXISTENTE);
+}
 
 sb.auth.onAuthStateChange((evento) => { if (evento === "SIGNED_OUT") mostrar("tela-entrar"); });
 rotear();
