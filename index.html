@@ -33,6 +33,7 @@
   <section id="tela-entrar" hidden>
     <div class="logo">Syncthesia</div>
     <h1 class="titulo">Entrar</h1>
+    <div class="msg ok aviso-convite" hidden></div>
     <form class="painel" id="form-entrar" novalidate>
       <div class="msg erro" id="erro-entrar" hidden></div>
       <input class="campo" id="entrar-email" type="email" placeholder="E-mail" autocomplete="email" required>
@@ -46,6 +47,7 @@
   <section id="tela-cadastro" hidden>
     <button class="voltar" id="voltar-entrar" type="button" aria-label="Voltar"><span class="icone i-voltar"></span></button>
     <h1 class="titulo">Criar conta</h1>
+    <div class="msg ok aviso-convite" hidden></div>
     <form class="painel" id="form-cadastro" novalidate>
       <div class="msg erro" id="erro-cadastro" hidden></div>
       <div class="msg ok" id="ok-cadastro" hidden></div>
@@ -157,7 +159,10 @@
       <button class="pf-num" id="pf-ver-seguidores" type="button"><b id="pf-seguidores">0</b> seguidores</button>
       <button class="pf-num" id="pf-ver-seguindo" type="button"><b id="pf-seguindo">0</b> seguindo</button>
     </p>
-    <button class="botao amarelo pf-seguir" id="pf-seguir" type="button" hidden>Seguir</button>
+    <div class="pf-acoes">
+      <button class="botao amarelo pf-seguir" id="pf-seguir" type="button" hidden>Seguir</button>
+      <button class="botao cinza pf-compartilhar" id="pf-compartilhar" type="button" hidden>Compartilhar perfil</button>
+    </div>
 
     <div class="pref" id="pf-pref" hidden>
       <b class="pref-rotulo">Música preferida:</b>
