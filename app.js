@@ -1016,7 +1016,7 @@ async function abrirPerfil(id, semOrigem) {
     $("pf-banner").style.backgroundImage = /^https:\/\//.test(p.banner_url || "") ? `url("${p.banner_url}")` : "";
     pintarAvatar($("pf-foto"), p);
     $("pf-seguindo").textContent = info.seguindo; $("pf-seguidores").textContent = info.seguidores;
-    $("pf-editar").hidden = !meu; $("pf-seguir").hidden = meu; if (!meu) pintarSeguir(); $("pf-compartilhar").hidden = false; $("pf-compartilhar").classList.toggle("ao-lado", meu);
+    $("pf-editar").hidden = !meu; $("pf-seguir").hidden = meu; if (!meu) pintarSeguir(); $("pf-compartilhar").hidden = false;
     $("pf-definir").hidden = !meu; $("pf-definir").textContent = info.preferida ? "Trocar música preferida" : "Definir música preferida";
     if (info.preferida) {
       const m = info.preferida.musica || {};
