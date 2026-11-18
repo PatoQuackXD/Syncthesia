@@ -558,7 +558,7 @@ const ABA_PADRAO = "global";            // quando houver bastante gente, troque 
 const TAM_PAGINA = 20;
 const eu = { id: null, perfil: null };
 const SELECT_AV = "id,tipo,musica_id,nota,critica,cor1,cor2,cor3,eh_reavaliacao,eh_primeira_da_musica,criado_em,usuario_id," +
-  "perfis(nome_usuario,foto_url),musicas(titulo,artista,album,capa_url,explicita)";
+  "perfis!usuario_id(nome_usuario,foto_url),musicas(titulo,artista,album,capa_url,explicita)";
 
 // ---- acesso aos dados (no modo demonstração usa a lista de exemplo) ----
 async function completar(linhas) {
