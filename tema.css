@@ -272,3 +272,8 @@ button.autor-com{display:flex;align-items:center;gap:10px;background:none;border
 .seg-btn.sigo{background:var(--card)}
 .seg-btn:disabled{opacity:.6;cursor:default}
 .pessoa .voce{flex:none;font-size:.8rem;font-weight:700;color:#555;padding:0 6px}
+
+/* ---- compartilhar perfil ---- */
+.pf-acoes{margin-bottom:20px}
+.pf-acoes .botao{max-width:260px;margin:0 auto 10px}
+.pf-acoes .botao:last-child{margin-bottom:0}
