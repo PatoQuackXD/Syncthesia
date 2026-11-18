@@ -25,6 +25,7 @@ const PERFIS_DEMO = {
 };
 const SEGUINDO_DEMO = new Set();
 const mins = (n) => new Date(Date.now() - n * 60000).toISOString();
+const REPUBS_DEMO = [{ usuario_id: "x1", avaliacao_id: "d2", criado_em: mins(40) }];   // lia_discos republicou a avaliação do bruno
 const COMENTARIOS_DEMO = [
   { id: "c1", avaliacao_id: "d1", pai_id: null, usuario_id: "x2", texto: "ESSA É GOAT DEMAIS", criado_em: mins(2), pontuacao: 4, minha: null },
   { id: "c2", avaliacao_id: "d1", pai_id: null, usuario_id: "x3", texto: "Tema de abertura de série, fácil.", criado_em: mins(95), pontuacao: 1, minha: null },
@@ -32,6 +33,11 @@ const COMENTARIOS_DEMO = [
   { id: "c4", avaliacao_id: "d1", pai_id: "c1", usuario_id: "x3", texto: "Concordo. Nota 10.", criado_em: mins(30), pontuacao: 2, minha: null }
 ];
 const autorDemo = (uid) => (uid === eu.id ? eu.perfil : PERFIS_DEMO[uid] || { nome_usuario: "alguém" });
+const infoRepubDemo = (id) => {                            // total, se eu republiquei e quais amigos (quem eu sigo) republicaram
+  const todas = REPUBS_DEMO.filter((r) => r.avaliacao_id === id);
+  const amigos = todas.filter((r) => SEGUINDO_DEMO.has(r.usuario_id)).sort((x, y) => y.criado_em.localeCompare(x.criado_em));
+  return { rep_total: todas.length, rep_eu: todas.some((r) => r.usuario_id === eu.id), rep_amigos: amigos.slice(0, 3).map((r) => autorDemo(r.usuario_id).nome_usuario), rep_amigos_total: amigos.length };
+};
 const respostasDemo = (id) => COMENTARIOS_DEMO.filter((c) => c.pai_id === id).reduce((n, c) => n + 1 + respostasDemo(c.id), 0);
 const respondeADemo = (c) => {
   const pai = c.pai_id && COMENTARIOS_DEMO.find((x) => x.id === c.pai_id);
@@ -42,7 +48,7 @@ const respondeADemo = (c) => {
 const comDemo = (a) => {                                    // total de comentários e a prévia de quem eu sigo
   const lista = COMENTARIOS_DEMO.filter((c) => c.avaliacao_id === a.id);
   const seg = lista.filter((c) => SEGUINDO_DEMO.has(c.usuario_id)).sort((x, y) => y.criado_em.localeCompare(x.criado_em))[0];
-  return { ...a, comentarios: lista.length, previa: seg ? { id: seg.id, nome_usuario: autorDemo(seg.usuario_id).nome_usuario, foto_url: null, texto: seg.texto, criado_em: seg.criado_em, respostas: respostasDemo(seg.id), responde_a: respondeADemo(seg) } : null };
+  return { ...a, ...infoRepubDemo(a.id), comentarios: lista.length, previa: seg ? { id: seg.id, nome_usuario: autorDemo(seg.usuario_id).nome_usuario, foto_url: null, texto: seg.texto, criado_em: seg.criado_em, respostas: respostasDemo(seg.id), responde_a: respondeADemo(seg) } : null };
 };
 const PREFERIDAS_DEMO = { x1: { musica_id: "demo-musica-x1", musica: { titulo: "Messages From The Stars", artista: "The RAH Band", album: "Going Up" }, cores: ["#8E3BC4", "#E9A0F0", "#C8D1DA"], avaliacao_id: null } };
 
@@ -558,13 +564,15 @@ const SELECT_AV = "id,tipo,musica_id,nota,critica,cor1,cor2,cor3,eh_reavaliacao,
 async function completar(linhas) {
   if (!linhas.length) return [];
   const ids = linhas.map((l) => l.id);
-  const [pl, re, ht, ct, pv] = await Promise.all([
+  const [pl, re, ht, ct, pv, rp] = await Promise.all([
     sb.from("avaliacoes_placar").select("avaliacao_id,pontuacao").in("avaliacao_id", ids),
     sb.from("reacoes").select("avaliacao_id,tipo").in("avaliacao_id", ids),   // só as minhas (regra do banco)
     sb.from("hits").select("avaliacao_id").in("avaliacao_id", ids)           // quais já foram escolhidas como HIT
     ,sb.from("avaliacoes_comentarios").select("avaliacao_id,total").in("avaliacao_id", ids),   // comentários + respostas
-    sb.rpc("comentario_previa_feed", { p_ids: ids })                                         // comentário de quem eu sigo
+    sb.rpc("comentario_previa_feed", { p_ids: ids }),                                        // comentário de quem eu sigo
+    sb.rpc("info_republicacoes", { p_ids: ids })                                             // republicações: total, se eu republiquei, amigos
   ]);
+  const reps = Object.fromEntries(((rp && rp.data) || []).map((x) => [x.avaliacao_id, x]));
   const totais = Object.fromEntries((ct.data || []).map((x) => [x.avaliacao_id, x.total]));
   const previas = Object.fromEntries((pv.data || []).map((x) => [x.avaliacao_id, x]));
   const hits = new Set((ht.data || []).map((x) => x.avaliacao_id));
@@ -573,12 +581,28 @@ async function completar(linhas) {
   return linhas.map((l) => ({
     id: l.id, tipo: l.tipo || "avaliacao", musica_id: l.musica_id, nota: l.nota == null ? null : Number(l.nota), critica: l.critica, cores: [l.cor1, l.cor2, l.cor3],
     reavaliacao: l.eh_reavaliacao, primeira: l.eh_primeira_da_musica, criado_em: l.criado_em, usuario_id: l.usuario_id,
-    autor: l.perfis || {}, musica: l.musicas || {}, pontuacao: placar[l.id] || 0, minha: minhas[l.id] || null, hit: hits.has(l.id), comentarios: totais[l.id] || 0, previa: previas[l.id] || null
+    autor: l.perfis || {}, musica: l.musicas || {}, pontuacao: placar[l.id] || 0, minha: minhas[l.id] || null, hit: hits.has(l.id), comentarios: totais[l.id] || 0, previa: previas[l.id] || null,
+    rep_total: (reps[l.id] || {}).total || 0, rep_eu: !!(reps[l.id] || {}).republiquei, rep_amigos: (reps[l.id] || {}).amigos || [], rep_amigos_total: (reps[l.id] || {}).amigos_total || 0
   }));
 }
 const dados = DEMO ? {
   async global(antes) { const lista = AVALIACOES_DEMO.filter((a) => !antes || a.criado_em < antes).map((a) => comDemo({ ...a, autor: a.autor || eu.perfil })); return { itens: lista.slice(0, TAM_PAGINA), mais: false }; },
-  async seguidos() { return { itens: AVALIACOES_DEMO.filter((a) => SEGUINDO_DEMO.has(a.usuario_id)).map((a) => comDemo({ ...a, autor: a.autor || PERFIS_DEMO[a.usuario_id] })), mais: false }; },
+  async seguidos() {                               // publicações de quem eu sigo + o que quem eu sigo republicou (uma vez só, no evento mais recente)
+    const ev = new Map();
+    const somar = (id, t, rep) => { const x = ev.get(id) || { t: "", rep: false }; if (t > x.t) x.t = t; x.rep = x.rep || rep; ev.set(id, x); };
+    AVALIACOES_DEMO.filter((a) => SEGUINDO_DEMO.has(a.usuario_id)).forEach((a) => somar(a.id, a.criado_em, false));
+    REPUBS_DEMO.filter((r) => SEGUINDO_DEMO.has(r.usuario_id)).forEach((r) => somar(r.avaliacao_id, r.criado_em, true));
+    const itens = [...ev].map(([id, x]) => {
+      const a = AVALIACOES_DEMO.find((y) => y.id === id);
+      return a && comDemo({ ...a, autor: a.autor || (a.usuario_id === eu.id ? eu.perfil : PERFIS_DEMO[a.usuario_id]), evento_em: x.t, republicado: x.rep });
+    }).filter(Boolean).sort((p, q) => q.evento_em.localeCompare(p.evento_em));
+    return { itens, mais: false };
+  },
+  async republicar(av) {                           // clicar de novo desfaz
+    const i = REPUBS_DEMO.findIndex((r) => r.usuario_id === eu.id && r.avaliacao_id === av.id);
+    if (i >= 0) REPUBS_DEMO.splice(i, 1); else REPUBS_DEMO.push({ usuario_id: eu.id, avaliacao_id: av.id, criado_em: new Date().toISOString() });
+    const x = infoRepubDemo(av.id); return { rep_eu: x.rep_eu, rep_total: x.rep_total };
+  },
   async hit() { return { itens: AVALIACOES_DEMO.filter((a) => a.hit).map((a) => comDemo({ ...a, autor: a.autor || PERFIS_DEMO[a.usuario_id] || eu.perfil })), mais: false }; },
   async reagir(av, tipo) {
     const original = AVALIACOES_DEMO.find((a) => a.id === av.id), antes = av.minha;
@@ -596,12 +620,32 @@ const dados = DEMO ? {
     return { itens: await completar(data), mais: data.length === TAM_PAGINA };
   },
   async seguidos(antes) {
-    const { data: seg, error } = await sb.rpc("feed_seguidos", { p_limite: TAM_PAGINA, p_antes: antes || null });
-    if (error) throw error;
+    const { data: seg, error } = await sb.rpc("feed_seguidos_v2", { p_limite: TAM_PAGINA, p_antes: antes || null });
+    if (error) {                                   // atualizacao_02.sql ainda não rodou: usa o feed antigo (sem republicados)
+      console.error("feed_seguidos_v2:", error);
+      const { data: ant, error: e0 } = await sb.rpc("feed_seguidos", { p_limite: TAM_PAGINA, p_antes: antes || null });
+      if (e0) throw e0;
+      if (!ant.length) return { itens: [], mais: false };
+      const { data: d0, error: e1 } = await sb.from("avaliacoes").select(SELECT_AV).in("id", ant.map((x) => x.id)).order("criado_em", { ascending: false });
+      if (e1) throw e1;
+      return { itens: await completar(d0), mais: ant.length === TAM_PAGINA };
+    }
     if (!seg.length) return { itens: [], mais: false };
-    const { data, error: e2 } = await sb.from("avaliacoes").select(SELECT_AV).in("id", seg.map((x) => x.id)).order("criado_em", { ascending: false });
+    const { data, error: e2 } = await sb.from("avaliacoes").select(SELECT_AV).in("id", seg.map((x) => x.avaliacao_id));
     if (e2) throw e2;
-    return { itens: await completar(data), mais: seg.length === TAM_PAGINA };
+    const evento = Object.fromEntries(seg.map((x) => [x.avaliacao_id, x]));
+    const itens = (await completar(data)).map((a) => ({ ...a, evento_em: evento[a.id].evento_em, republicado: evento[a.id].republicado }))
+      .sort((p, q) => new Date(q.evento_em) - new Date(p.evento_em));
+    return { itens, mais: seg.length === TAM_PAGINA };
+  },
+  async republicar(av) {                           // clicar de novo desfaz
+    const r = av.rep_eu
+      ? await sb.rpc("desfazer_republicacao", { p_avaliacao_id: av.id })
+      : await sb.rpc("republicar", { p_avaliacao_id: av.id });
+    if (r.error) throw r.error;
+    const { data } = await sb.rpc("info_republicacoes", { p_ids: [av.id] });
+    const x = (data && data[0]) || {};
+    return { rep_eu: !!x.republiquei, rep_total: x.total || 0 };
   },
   async hit() {                                  // lista FIXA do último fechamento (12h); não muda com curtidas novas
     const { data: h, error } = await sb.rpc("hit_atual");
@@ -666,9 +710,20 @@ function bolhaPrevia(av) {
   return p;
 }
 
+function textoQuem(nomes, total) {                // "por @ana", "por @ana e @bruno", "por @ana, @bruno e mais 2"
+  const n = nomes.map((x) => "@" + x), resto = total - n.length;
+  if (!n.length) return "";
+  if (resto > 0) return "por " + n.join(", ") + " e mais " + resto;
+  return "por " + (n.length > 1 ? n.slice(0, -1).join(", ") + " e " + n[n.length - 1] : n[0]);
+}
+
 function cartao(av, opc = {}) {
   const item = elemento("div", "item");
   const ehTexto = av.tipo === "texto";            // publicação de texto livre: sem música, nota, cores ou prévia
+  if (av.republicado) {                           // aparece aqui porque alguém republicou (Seguidos ou perfil de quem republicou)
+    item.append(elemento("span", "tag repub", "Republicado"));
+    if (opc.quemRepublicou && av.rep_amigos && av.rep_amigos.length) item.append(elemento("span", "repub-por", textoQuem(av.rep_amigos, av.rep_amigos_total)));
+  }
   const tags = ehTexto ? [] : [[av.hit, "hit", "HIT"], [av.primeira, "primeira", "#1 Avaliação"], [av.reavaliacao, "reav", "Re-avaliação"]];
   tags.filter((t) => t[0]).forEach((t) => item.append(elemento("span", "tag " + t[1], t[2])));
 
@@ -690,15 +745,19 @@ function cartao(av, opc = {}) {
   }
 
   const acoes = elemento("div", "acoes");
-  const curtir = elemento("button", "pill curtir"), discordar = elemento("button", "pill discordar"), coment = elemento("button", "pill coment");
-  curtir.type = discordar.type = coment.type = "button";
+  const curtir = elemento("button", "pill curtir"), discordar = elemento("button", "pill discordar"), coment = elemento("button", "pill coment"), repub = elemento("button", "pill repub");
+  curtir.type = discordar.type = coment.type = repub.type = "button";
   curtir.innerHTML = '<span class="icone i-estrela"></span><span class="n"></span>';
   discordar.innerHTML = '<span class="icone i-discordar"></span>';
   coment.innerHTML = '<span class="icone i-comentario"></span><span class="n"></span>';
+  repub.innerHTML = '<span class="icone i-republicar"></span><span class="n"></span>';
+  const proprio = av.usuario_id === eu.id; repub.disabled = proprio;           // não dá para republicar a própria publicação
   curtir.setAttribute("aria-label", "Curtir"); discordar.setAttribute("aria-label", "Discordar"); coment.setAttribute("aria-label", "Comentários");
   const pintar = () => {
     curtir.querySelector(".n").textContent = av.pontuacao;
     curtir.setAttribute("aria-pressed", String(av.minha === "curtir")); discordar.setAttribute("aria-pressed", String(av.minha === "discordar"));
+    const rot = proprio ? "Republicações (você não pode republicar a própria publicação)" : av.rep_eu ? "Desfazer republicação" : "Republicar";
+    repub.querySelector(".n").textContent = av.rep_total || 0; repub.setAttribute("aria-pressed", String(!!av.rep_eu)); repub.setAttribute("aria-label", rot); repub.title = rot;
   };
   av._pintarCom = () => { coment.querySelector(".n").textContent = av.comentarios || 0; };
   const reagir = async (tipo, botao) => {
@@ -708,9 +767,17 @@ function cartao(av, opc = {}) {
     botao.classList.remove("ocupado");
   };
   curtir.onclick = () => reagir("curtir", curtir); discordar.onclick = () => reagir("discordar", discordar);
+  repub.onclick = async () => {                   // republicar / desfazer; curtidas e comentários continuam na publicação original
+    repub.classList.add("ocupado");
+    try {
+      const r = await dados.republicar(av); av.rep_eu = r.rep_eu; av.rep_total = r.rep_total; pintar();
+      if (!av.rep_eu && opc.removerAoDesfazer) { item.remove(); if (opc.aoRemover) opc.aoRemover(); }
+    } catch (e) { console.error(e); (opc.aviso || avisoFeed)("Não foi possível republicar agora."); }
+    repub.classList.remove("ocupado");
+  };
   coment.onclick = () => abrirConversa(av);
   pintar(); av._pintarCom();
-  acoes.append(curtir, discordar, coment);
+  acoes.append(curtir, discordar, coment, repub);
   corpo.append(acoes);
 
   const lado = elemento("div", "lado");
@@ -762,8 +829,8 @@ async function carregarFeed(reiniciar) {
     const { itens, mais } = await dados[minhaAba](cursor);
     if (minhaAba !== aba) { carregando = false; return; }        // mudou de aba durante o carregamento
     avisoFeed("");
-    itens.forEach((a) => lista.append(cartao(a)));
-    if (itens.length) cursor = itens[itens.length - 1].criado_em;
+    itens.forEach((a) => lista.append(cartao(a, { quemRepublicou: minhaAba === "seguidos" })));
+    if (itens.length) cursor = itens[itens.length - 1].evento_em || itens[itens.length - 1].criado_em;
     $("feed-mais").hidden = !mais;
     if (!lista.children.length) avisoFeed(VAZIO[aba]);
   } catch (e) {
@@ -919,7 +986,15 @@ const dadosPerfil = DEMO ? {
     const pessoas = idsListaDemo(id, tipo).map((i) => todos[i]).filter(Boolean).sort((x, y) => x.nome_usuario.localeCompare(y.nome_usuario));
     return { pessoas, sigo: new Set(SEGUINDO_DEMO), cheio: false };
   },
-  async avaliacoes(id) { return AVALIACOES_DEMO.filter((a) => a.usuario_id === id).map((a) => comDemo({ ...a, autor: a.autor || (id === eu.id ? eu.perfil : PERFIS_DEMO[id]) })); },
+  async avaliacoes(id) {                           // as avaliações da pessoa + o que ela republicou
+    const autor = (a) => a.autor || (a.usuario_id === eu.id ? eu.perfil : PERFIS_DEMO[a.usuario_id]);
+    const orig = AVALIACOES_DEMO.filter((a) => a.usuario_id === id).map((a) => comDemo({ ...a, autor: autor(a), evento_em: a.criado_em }));
+    const rep = REPUBS_DEMO.filter((r) => r.usuario_id === id).map((r) => {
+      const a = AVALIACOES_DEMO.find((y) => y.id === r.avaliacao_id);
+      return a && comDemo({ ...a, autor: autor(a), republicado: true, evento_em: r.criado_em });
+    }).filter(Boolean);
+    return [...orig, ...rep].sort((x, y) => y.evento_em.localeCompare(x.evento_em));
+  },
   async idPorNome(nome) {
     const t = nome.toLowerCase();
     if (eu.perfil && eu.perfil.nome_usuario.toLowerCase() === t) return eu.id;
@@ -965,9 +1040,22 @@ const dadosPerfil = DEMO ? {
     pessoas.sort((x, y) => x.nome_usuario.localeCompare(y.nome_usuario));
     return { pessoas, sigo, cheio: ids.length >= 1000 };
   },
-  async avaliacoes(id) {
-    const { data, error } = await sb.from("avaliacoes").select(SELECT_AV).eq("usuario_id", id).order("criado_em", { ascending: false }).limit(50);
-    if (error) throw error; return completar(data);
+  async avaliacoes(id) {                           // as avaliações da pessoa + o que ela republicou
+    const [o, r] = await Promise.all([
+      sb.from("avaliacoes").select(SELECT_AV).eq("usuario_id", id).order("criado_em", { ascending: false }).limit(50),
+      sb.from("republicacoes").select("avaliacao_id,criado_em").eq("usuario_id", id).order("criado_em", { ascending: false }).limit(50)
+    ]);
+    if (o.error) throw o.error;
+    const originais = await completar(o.data); originais.forEach((a) => { a.evento_em = a.criado_em; });
+    const reps = r.error ? [] : r.data;            // sem a tabela nova (SQL ainda não rodou): só as avaliações
+    let repub = [];
+    if (reps.length) {
+      const { data, error } = await sb.from("avaliacoes").select(SELECT_AV).in("id", reps.map((x) => x.avaliacao_id));
+      if (error) throw error;
+      const quando = Object.fromEntries(reps.map((x) => [x.avaliacao_id, x.criado_em]));
+      repub = (await completar(data)).map((a) => ({ ...a, republicado: true, evento_em: quando[a.id] }));
+    }
+    return [...originais, ...repub].sort((x, y) => new Date(y.evento_em) - new Date(x.evento_em)).slice(0, 50);
   },
   async buscar(q) {
     let c = sb.from("perfis").select("id,nome_usuario,bio,foto_url,criado_em").neq("id", eu.id).limit(20);
@@ -994,8 +1082,14 @@ function pintarSeguir() {
 }
 function desenharListaPerfil() {
   const lista = $("pf-lista"); lista.textContent = ""; avisoPerfil("");
-  const por = { recentes: (a, b) => b.criado_em.localeCompare(a.criado_em), curtidas: (a, b) => b.pontuacao - a.pontuacao || b.criado_em.localeCompare(a.criado_em), nota: (a, b) => b.nota - a.nota || b.criado_em.localeCompare(a.criado_em) };
-  [...itensPerfil].sort(por[$("pf-ordem").value]).forEach((a) => lista.append(cartao(a, { semAutor: true })));
+  const t = (a) => new Date(a.evento_em || a.criado_em).getTime();      // republicado conta pela data em que foi republicado
+  const por = { recentes: (a, b) => t(b) - t(a), curtidas: (a, b) => b.pontuacao - a.pontuacao || t(b) - t(a), nota: (a, b) => (b.nota || 0) - (a.nota || 0) || t(b) - t(a) };
+  const dono = perfilAberto === eu.id;
+  [...itensPerfil].sort(por[$("pf-ordem").value]).forEach((a) => lista.append(cartao(a, {
+    semAutor: !a.republicado, aviso: avisoPerfil,
+    removerAoDesfazer: a.republicado && dono,       // desfazer no próprio perfil tira o cartão da lista
+    aoRemover: () => { itensPerfil = itensPerfil.filter((x) => !(x.id === a.id && x.republicado)); if (!lista.children.length) avisoPerfil("Ainda não avaliou nenhuma música."); }
+  })));
   if (!itensPerfil.length) avisoPerfil("Ainda não avaliou nenhuma música.");
   else if (itensPerfil.length >= 50) avisoPerfil("Mostrando as 50 avaliações mais recentes.");
 }
