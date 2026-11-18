@@ -2,7 +2,7 @@
 const cfg = window.SYNC_CONFIG || {};
 const DEMO = !cfg.SUPABASE_URL || cfg.SUPABASE_URL.startsWith("COLE");
 const $ = (id) => document.getElementById(id);
-const TELAS = ["tela-entrar", "tela-cadastro", "tela-perfil", "tela-inicio", "tela-adicionar", "tela-avaliacao", "tela-buscar", "tela-ver-perfil", "tela-pessoas", "tela-conversa"];
+const TELAS = ["tela-entrar", "tela-cadastro", "tela-perfil", "tela-inicio", "tela-adicionar", "tela-avaliacao", "tela-album", "tela-buscar", "tela-ver-perfil", "tela-pessoas", "tela-conversa"];
 const API_URL = (cfg.API_URL || "https://meu-backend-jf73.onrender.com").replace(/\/$/, "");
 
 // Avaliações de exemplo (modo demonstração): o feed e o "banco" falso usam a mesma lista.
@@ -14,7 +14,17 @@ const AVALIACOES_DEMO = [
   { id: "d3", musica_id: "seed-3", usuario_id: "x3", autor: { nome_usuario: "ana_ouve" }, musica: { titulo: "Eu Ouço Vozes", artista: "Artista Exemplo", album: "Álbum Exemplo", explicita: true },
     nota: 3.5, critica: null, cores: ["#E0208F", "#00B8D9", "#F2C500"], primeira: false, reavaliacao: false, criado_em: new Date(Date.now() - 7 * 864e5).toISOString(), pontuacao: 0, minha: null },
   { id: "d4", tipo: "texto", usuario_id: "x2", autor: { nome_usuario: "bruno.vinil" }, musica: {}, nota: null,
-    critica: "Aviso da casa: sexta tem noite de vinil. Levem seus discos favoritos.", cores: [null, null, null], criado_em: new Date(Date.now() - 5 * 36e5).toISOString(), pontuacao: 3, minha: null }
+    critica: "Aviso da casa: sexta tem noite de vinil. Levem seus discos favoritos.", cores: [null, null, null], criado_em: new Date(Date.now() - 5 * 36e5).toISOString(), pontuacao: 3, minha: null },
+  { id: "d5", tipo: "album", usuario_id: "x1", autor: { nome_usuario: "lia_discos" }, musica: { titulo: "Discovery", artista: "Daft Punk", album: null, capa_url: null, explicita: false },
+    album: { id: "demo-album-a1", titulo: "Discovery", artista: "Daft Punk", capa_url: null, total_faixas: 4 },
+    nota: 4, media: 3.88, critica: "Um clássico que envelhece muito bem. O miolo do disco é o melhor pedaço.", cores: ["#F2C500", "#E0208F", "#00B8D9"],
+    faixas: [
+      { musica_id: "demo-musica-a1-1", posicao: 1, titulo: "One More Time", artista: "Daft Punk", explicita: false, nota: 5, cores: ["#F2C500", "#E0208F", "#00B8D9"] },
+      { musica_id: "demo-musica-a1-2", posicao: 2, titulo: "Aerodynamic", artista: "Daft Punk", explicita: false, nota: 4, cores: ["#2B3FA8", "#1F7A4A", "#E8A33D"] },
+      { musica_id: "demo-musica-a1-3", posicao: 3, titulo: "Something About Us", artista: "Daft Punk", explicita: false, nota: 3.5, cores: ["#E0208F", "#7BC96F", "#F2E14C"] },
+      { musica_id: "demo-musica-a1-4", posicao: 4, titulo: "Harder, Better, Faster, Stronger", artista: "Daft Punk", explicita: false, nota: 3, cores: ["#00B8D9", "#0B0B1E", "#F2C500"] }
+    ],
+    criado_em: new Date(Date.now() - 90 * 60000).toISOString(), pontuacao: 6, minha: null }
 ];
 
 const dias = (n) => new Date(Date.now() - n * 864e5).toISOString();
@@ -121,7 +131,7 @@ function mostrar(id) {
   TELAS.forEach((t) => ($(t).hidden = t !== id));
   $("topo").hidden = !NOMES_TELA[id];
   if (NOMES_TELA[id]) $("topo-nome").textContent = NOMES_TELA[id];
-  $("fab-add").hidden = id !== "tela-inicio"; $("neb").hidden = id !== "tela-avaliacao";
+  $("fab-add").hidden = id !== "tela-inicio"; $("neb").hidden = id !== "tela-avaliacao" && id !== "tela-album";
   fecharMenu(); pararPrevia(); pararPlayerAv(); window.scrollTo(0, 0);
   if (id === "tela-inicio" && !manterFeed) abrirFeed();
   manterFeed = false;
@@ -268,8 +278,18 @@ const MUSICAS_DEMO = [
   { deezer_id: "2", titulo: "Something About Us", artista: "Daft Punk", album: "Discovery", capa_url: null, explicita: false, previa_url: null },
   { deezer_id: "3", titulo: "Eu Ouço Vozes", artista: "Artista Exemplo", album: "Álbum Exemplo", capa_url: null, explicita: true, previa_url: "https://exemplo.test/previa2.mp3" }
 ];
+const ALBUNS_DEMO = [
+  { deezer_id: "a1", titulo: "Discovery", artista: "Daft Punk", capa_url: null, faixas: [{ titulo: "One More Time" }, { titulo: "Aerodynamic" }, { titulo: "Something About Us" }, { titulo: "Harder, Better, Faster, Stronger" }] },
+  { deezer_id: "a2", titulo: "Álbum Exemplo", artista: "Artista Exemplo", capa_url: null, faixas: [{ titulo: "Eu Ouço Vozes", explicita: true }, { titulo: "Faixa Dois" }, { titulo: "Faixa Três" }] }
+];
 async function chamarApi(caminho, opc = {}) {
   if (DEMO) {                                   // sem servidor: respostas de mentira
+    if (caminho.startsWith("/api/albuns/buscar")) return { resultados: ALBUNS_DEMO.map((x) => ({ deezer_id: x.deezer_id, titulo: x.titulo, artista: x.artista, capa_url: x.capa_url, total_faixas: x.faixas.length, explicita: false })) };
+    if (caminho === "/api/albuns") {
+      const x = ALBUNS_DEMO.find((y) => y.deezer_id === opc.body.deezer_id);
+      return { album: { id: "demo-album-" + x.deezer_id, titulo: x.titulo, artista: x.artista, capa_url: x.capa_url, total_faixas: x.faixas.length },
+        faixas: x.faixas.map((f, i) => ({ musica_id: `demo-musica-${x.deezer_id}-${i + 1}`, posicao: i + 1, titulo: f.titulo, artista: x.artista, explicita: !!f.explicita, previa_url: "demo" })) };
+    }
     if (caminho.startsWith("/api/buscar")) return { resultados: MUSICAS_DEMO };
     if (caminho === "/api/musicas") return { musica: { id: "demo-musica-" + opc.body.deezer_id } };
     if (/\/previa$/.test(caminho)) return { previa_url: "demo" };
@@ -290,8 +310,13 @@ const textos = DEMO ? {
   async contar(ids) {
     return Object.fromEntries(ids.map((id) => {
       const m = MUSICAS_DEMO.find((x) => x.deezer_id === String(id));
-      return [String(id), AVALIACOES_DEMO.filter((a) => (a.tipo || "avaliacao") === "avaliacao" && m && a.musica && a.musica.titulo === m.titulo).length];
+      const soltas = AVALIACOES_DEMO.filter((a) => (a.tipo || "avaliacao") === "avaliacao" && m && a.musica && a.musica.titulo === m.titulo).length;
+      const emAlbum = AVALIACOES_DEMO.filter((a) => a.tipo === "album").reduce((n, a) => n + (m ? a.faixas.filter((f) => f.titulo === m.titulo).length : 0), 0);
+      return [String(id), soltas + emAlbum];            // faixa avaliada dentro de um álbum também conta
     }));
+  },
+  async contarAlbuns(ids) {
+    return Object.fromEntries(ids.map((id) => [String(id), AVALIACOES_DEMO.filter((a) => a.tipo === "album" && a.album && a.album.id === "demo-album-" + id).length]));
   },
   async validar(codigo) { return codigo === CODIGO_DEMO ? { ok: true } : { ok: false, erro: "codigo" }; },
   async postar(codigo, texto) {
@@ -306,15 +331,34 @@ const textos = DEMO ? {
     if (error) throw error;
     return Object.fromEntries((data || []).map((x) => [String(x.deezer_id), Number(x.total)]));
   },
+  async contarAlbuns(ids) {
+    const { data, error } = await sb.rpc("contar_albuns", { p_deezer_ids: ids.map(String) });
+    if (error) throw error;
+    return Object.fromEntries((data || []).map((x) => [String(x.deezer_id), Number(x.total)]));
+  },
   async validar(codigo) { const { data, error } = await sb.rpc("validar_codigo_texto", { p_codigo: codigo }); if (error) throw error; return data; },
   async postar(codigo, texto) { const { data, error } = await sb.rpc("postar_texto", { p_codigo: codigo, p_texto: texto }); if (error) throw error; return data; }
+};
+const dadosAlbum = DEMO ? {
+  async publicar({ cores, critica, faixas }, { album, faixas: detalhe }) {
+    const media = Math.round((faixas.reduce((s, f) => s + f.nota, 0) / faixas.length) * 100) / 100, nota = Math.min(5, Math.round(media * 2) / 2);
+    AVALIACOES_DEMO.unshift({ id: "demo-al" + (AVALIACOES_DEMO.length + 1), tipo: "album", usuario_id: eu.id, autor: eu.perfil, album,
+      musica: { titulo: album.titulo, artista: album.artista, album: null, capa_url: album.capa_url, explicita: false }, nota, media, critica, cores,
+      faixas: detalhe.map((f) => ({ musica_id: f.musica_id, posicao: f.posicao, titulo: f.titulo, artista: f.artista, explicita: f.explicita, nota: f.nota, cores: f.cores.map((c) => c.slice(0, 7)) })),
+      criado_em: new Date().toISOString(), pontuacao: 0, minha: null });
+  }
+} : {
+  async publicar({ albumId, cores, critica, faixas }) {   // o servidor confere tudo e calcula a média
+    const { data, error } = await sb.rpc("publicar_album", { p_album_id: albumId, p_cores: cores, p_critica: critica, p_faixas: faixas });
+    if (error) throw error; return data;
+  }
 };
 const semConexao = (e) => /failed to fetch|networkerror|load failed/i.test(e.message || "");
 
 // =====================================================================
 // ADICIONAR AVALIAÇÃO
 // =====================================================================
-const add = { musica: null, nota: 0, notaTocada: false, cores: [null, null, null], texto: false, codigo: null };
+const add = { tipo: "musica", album: null, faixas: [], musica: null, nota: 0, notaTocada: false, cores: [null, null, null], texto: false, codigo: null };
 const seletores = [];
 const COR_NEUTRA = "#cccccc";
 
@@ -325,20 +369,21 @@ function pararPrevia() {
   if (botaoAtual) botaoAtual.textContent = "▶";
   audioAtual = null; botaoAtual = null;
 }
-function tocarPrevia(url, botao) {
+function tocarPrevia(url, botao, aoFalhar) {
   const mesmo = botaoAtual === botao; pararPrevia(); if (mesmo) return;
-  audioAtual = new Audio(url); botaoAtual = botao; botao.textContent = "❚❚";
+  audioAtual = DEMO && url === "demo" ? audioDemo() : new Audio(url); botaoAtual = botao; botao.textContent = "❚❚";
   audioAtual.onended = pararPrevia;
-  const falhou = () => { if (botaoAtual === botao) { pararPrevia(); erro("erro-adicionar", "Não foi possível tocar a prévia."); } };
+  const falhou = () => { if (botaoAtual === botao) { pararPrevia(); if (aoFalhar) aoFalhar(); else erro("erro-adicionar", "Não foi possível tocar a prévia."); } };
   audioAtual.onerror = falhou;
   const p = audioAtual.play(); if (p && p.catch) p.catch(falhou);
 }
 
-const textoContagem = (n) => (n === 0 ? "Ainda não avaliada no site" : n === 1 ? "Avaliada 1 vez no site" : `Avaliada ${n} vezes no site`);
+const textoContagem = (n, masc) => { const v = masc ? "Avaliado" : "Avaliada"; return n === 0 ? `Ainda não ${v.toLowerCase()} no site` : n === 1 ? `${v} 1 vez no site` : `${v} ${n} vezes no site`; };
 async function carregarContagens(linhas) {       // preenche "Avaliada N vezes" sem travar a lista
   try {
-    const mapa = await textos.contar(linhas.map(([m]) => m.deezer_id));
-    linhas.forEach(([m, li]) => { m.total_av = mapa[String(m.deezer_id)] || 0; const c = li.querySelector(".contagem"); if (c) c.textContent = textoContagem(m.total_av); });
+    const contar = linhas.length && linhas[0][0]._album ? textos.contarAlbuns : textos.contar;
+    const mapa = await contar.call(textos, linhas.map(([m]) => m.deezer_id));
+    linhas.forEach(([m, li]) => { m.total_av = mapa[String(m.deezer_id)] || 0; const c = li.querySelector(".contagem"); if (c) c.textContent = textoContagem(m.total_av, m._album); });
   } catch (e) { console.error("Contagem de avaliações:", e); }
 }
 
@@ -352,7 +397,7 @@ function linhaMusica(m, { escolhida = false } = {}) {
   if (m.explicita) { const e = document.createElement("span"); e.className = "selo-e"; e.textContent = "E"; t.append(e); }
   const s = document.createElement("small"); s.textContent = [m.artista, m.album].filter(Boolean).join(" · ");
   const cont = document.createElement("small"); cont.className = "contagem";
-  if (m.total_av != null) cont.textContent = textoContagem(m.total_av);
+  if (m.total_av != null) cont.textContent = textoContagem(m.total_av, m._album);
   info.append(t, s, cont); li.append(capa, info);
   if (m.previa_url && /^https:\/\//.test(m.previa_url)) {
     const b = document.createElement("button"); b.type = "button"; b.className = "play"; b.textContent = "▶";
@@ -368,6 +413,7 @@ async function buscarMusicas() {
   const q = $("busca-q").value.trim(); erro("erro-adicionar");
   if (eCodigo(q)) return tentarCodigo(q);
   if (q.length < 2) return mostrarAviso("Digite pelo menos 2 letras.");
+  if (add.tipo === "album") return buscarAlbuns(q);
   const lista = $("resultados"); lista.textContent = "Buscando...";
   const demora = setTimeout(() => mostrarAviso("O servidor pode estar acordando: na primeira busca isso leva até 1 minuto."), 6000);
   $("busca-ir").disabled = true;
@@ -381,8 +427,7 @@ async function buscarMusicas() {
   } catch (e) {
     lista.textContent = "";
     mostrarAviso(semConexao(e) ? "Não consegui falar com o servidor. Tente de novo em instantes." : e.message);
-  }
-  clearTimeout(demora); $("busca-ir").disabled = false;
+  } finally { clearTimeout(demora); $("busca-ir").disabled = false; }
 }
 function mostrarAviso(t) { const a = $("busca-aviso"); a.textContent = t; a.hidden = !t; }
 $("busca-ir").onclick = buscarMusicas;
@@ -441,6 +486,176 @@ $("estrelas").addEventListener("keydown", (e) => {
   if (k) { e.preventDefault(); definirNota(add.nota + k); }
 });
 
+// =====================================================================
+// ÁLBUM COMPLETO: nota e 3 cores em CADA faixa; a nota do álbum é a média
+// =====================================================================
+const formatarMedia = (v) => Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 2 });
+const notaTxt = (n) => String(n).replace(".", ",");
+const coresRepetidas = (c) => c.every(Boolean) && (mesmaCor(c[0], c[1]) || mesmaCor(c[0], c[2]) || mesmaCor(c[1], c[2]));
+const faixaCompleta = (f) => f.tocada && f.cores.every(Boolean) && !coresRepetidas(f.cores);
+
+function sincronizarTipoAdd() {                   // deixa a tela de acordo com add.tipo (Música ou Álbum)
+  const alb = add.tipo === "album";
+  $("abas-tipo").hidden = add.modo === "preferida";
+  $("tipo-musica").setAttribute("aria-selected", String(!alb)); $("tipo-album").setAttribute("aria-selected", String(alb));
+  $("busca-q").placeholder = alb ? "Busque o álbum" : "Busque a música";
+  $("sub-cores").textContent = alb ? "Escolha 3 cores diferentes para o álbum:" : "Escolha 3 cores diferentes:";
+  $("critica").placeholder = alb ? "Opiniões sobre o álbum? (opcional)" : "Opiniões sobre a música? (opcional)";
+  $("album-faixas").textContent = ""; $("album-faixas").hidden = true;
+}
+function definirTipoAdd(t) {
+  if (add.tipo === t) return;
+  pararPrevia(); add.tipo = t; add.musica = null; add.album = null; add.faixas = [];
+  $("busca-q").value = ""; $("resultados").textContent = ""; mostrarAviso(""); erro("erro-adicionar");
+  sincronizarTipoAdd(); validarAdicionar();
+}
+$("tipo-musica").onclick = () => definirTipoAdd("musica");
+$("tipo-album").onclick = () => definirTipoAdd("album");
+
+async function buscarAlbuns(q) {
+  const lista = $("resultados"); lista.textContent = "Buscando...";
+  const demora = setTimeout(() => mostrarAviso("O servidor pode estar acordando: na primeira busca isso leva até 1 minuto."), 6000);
+  $("busca-ir").disabled = true;
+  try {
+    const { resultados } = await chamarApi("/api/albuns/buscar?q=" + encodeURIComponent(q));
+    lista.textContent = ""; mostrarAviso("");
+    if (!resultados.length) return mostrarAviso("Nenhum álbum encontrado.");
+    const linhas = [];
+    resultados.forEach((al) => {
+      const m = { deezer_id: al.deezer_id, titulo: al.titulo, artista: al.artista, album: al.total_faixas + " faixas", capa_url: al.capa_url, explicita: al.explicita, previa_url: null, _album: true };
+      const li = linhaMusica(m); li.onclick = () => escolherAlbum(al); lista.append(li); linhas.push([m, li]);
+    });
+    carregarContagens(linhas);
+  } catch (e) {
+    lista.textContent = "";
+    mostrarAviso(semConexao(e) ? "Não consegui falar com o servidor. Tente de novo em instantes." : e.message);
+  } finally { clearTimeout(demora); $("busca-ir").disabled = false; }
+}
+
+async function escolherAlbum(al) {
+  pararPrevia(); mostrarAviso("Carregando as faixas...");
+  try {
+    const r = await chamarApi("/api/albuns", { method: "POST", body: { deezer_id: al.deezer_id } });
+    mostrarAviso("");
+    add.album = r.album;
+    add.faixas = r.faixas.map((f) => ({ ...f, nota: 0, tocada: false, cores: [null, null, null], aberta: false }));
+    const lista = $("resultados"); lista.textContent = "";
+    lista.append(linhaMusica({ titulo: r.album.titulo, artista: r.album.artista, album: r.album.total_faixas + " faixas", capa_url: r.album.capa_url, explicita: false, previa_url: null }, { escolhida: true }));
+    const trocar = document.createElement("button"); trocar.type = "button"; trocar.className = "trocar"; trocar.textContent = "Trocar álbum";
+    trocar.onclick = () => { pararPrevia(); add.album = null; add.faixas = []; lista.textContent = ""; $("album-faixas").textContent = ""; $("album-faixas").hidden = true; $("busca-q").focus(); validarAdicionar(); };
+    lista.append(trocar);
+    desenharFaixasAdd(); validarAdicionar();
+  } catch (e) {
+    mostrarAviso(semConexao(e) ? "Não consegui falar com o servidor. Tente de novo em instantes." : e.message);
+  }
+}
+
+function criarEstrelasEditaveis(valorInicial, aoMudar, rotulo) {     // mesmas meias estrelas da nota de música
+  const el = elemento("div", "estrelas"); el.tabIndex = 0; el.setAttribute("role", "slider");
+  el.setAttribute("aria-label", rotulo); el.setAttribute("aria-valuemin", "0"); el.setAttribute("aria-valuemax", "5"); el.setAttribute("aria-valuestep", "0.5");
+  let v = valorInicial, arrastando = false;
+  const desenhar = () => {
+    el.textContent = "";
+    for (let i = 0; i < 5; i++) {
+      const f = Math.max(0, Math.min(1, v - i)), s = document.createElement("span");
+      s.className = "star"; s.innerHTML = ESTRELA + `<span class="fill" style="width:${f * 100}%">${ESTRELA}</span>`; el.append(s);
+    }
+    el.setAttribute("aria-valuenow", v);
+  };
+  const definir = (x) => { v = Math.max(0, Math.min(5, Math.round(x * 2) / 2)); desenhar(); aoMudar(v); };
+  const doX = (px) => { const r = el.getBoundingClientRect(); definir(Math.ceil(((px - r.left) / r.width) * 10) / 2); };
+  el.addEventListener("pointerdown", (e) => { arrastando = true; el.setPointerCapture(e.pointerId); doX(e.clientX); });
+  el.addEventListener("pointermove", (e) => { if (arrastando) doX(e.clientX); });
+  ["pointerup", "pointercancel"].forEach((ev) => el.addEventListener(ev, () => (arrastando = false)));
+  el.addEventListener("keydown", (e) => { const k = { ArrowRight: 0.5, ArrowUp: 0.5, ArrowLeft: -0.5, ArrowDown: -0.5 }[e.key]; if (k) { e.preventDefault(); definir(v + k); } });
+  desenhar(); return el;
+}
+
+function desenharFaixasAdd() {
+  const box = $("album-faixas"); box.textContent = ""; box.hidden = !add.album;
+  if (!add.album) return;
+  const topo = elemento("div", "faixas-topo"); topo.append(elemento("span", "", "Avalie cada faixa"), elemento("small", "")); topo.lastChild.id = "faixas-prog";
+  box.append(topo);
+  add.faixas.forEach((f) => box.append(linhaFaixaAdd(f)));
+}
+function atualizarProgresso() {
+  const p = $("faixas-prog"); if (!p) return;
+  p.textContent = `${add.faixas.filter(faixaCompleta).length} de ${add.faixas.length} prontas`;
+}
+function linhaFaixaAdd(f) {
+  const d = elemento("div", "faixa-ed"), cab = elemento("button", "faixa-cab"), sit = elemento("span", "sit"), corpo = elemento("div", "faixa-corpo");
+  cab.type = "button"; cab.setAttribute("aria-expanded", String(f.aberta)); corpo.hidden = !f.aberta;
+  const tit = elemento("span", "tit", f.titulo); if (f.explicita) tit.append(elemento("span", "selo-e", "E"));
+  cab.append(elemento("span", "n", String(f.posicao)), tit, sit);
+
+  const valor = elemento("div", "faixa-valor"), aviso = elemento("div", "faixa-aviso");
+  const est = criarEstrelasEditaveis(f.nota, (v) => { f.nota = v; f.tocada = true; pintar(); }, "Nota da faixa " + f.posicao);
+  const cores = elemento("div", "faixa-cores");
+  const inputs = [0, 1, 2].map((i) => {
+    const inp = document.createElement("input"); inp.type = "color"; inp.value = f.cores[i] || COR_NEUTRA; inp.setAttribute("aria-label", `Cor ${i + 1} da faixa ${f.posicao}`);
+    if (f.cores[i]) inp.classList.add("def");
+    inp.oninput = () => { f.cores[i] = inp.value; inp.classList.add("def"); pintar(); };
+    return inp;
+  });
+  cores.append(...inputs);
+  const acoes = elemento("div", "faixa-acoes");
+  if (f.previa_url && (DEMO || /^https:\/\//.test(f.previa_url))) {
+    const pb = elemento("button", "play", "▶"); pb.type = "button"; pb.setAttribute("aria-label", "Tocar prévia de 30 segundos");
+    pb.onclick = () => tocarPrevia(f.previa_url, pb, () => { aviso.textContent = "Não foi possível tocar a prévia."; });
+    acoes.append(pb);
+  }
+  const usar = elemento("button", "link", "Usar as cores do álbum"); usar.type = "button";
+  usar.onclick = () => {
+    if (add.cores.some((c) => !c) || coresRepetidas(add.cores)) { aviso.textContent = "Escolha antes as 3 cores do álbum (diferentes entre si)."; return; }
+    f.cores = add.cores.map((c) => c.slice(0, 7)); inputs.forEach((inp, i) => { inp.value = f.cores[i]; inp.classList.add("def"); }); pintar();
+  };
+  acoes.append(usar);
+  corpo.append(est, valor, cores, acoes, aviso);
+
+  function pintar() {
+    d.classList.toggle("ok", faixaCompleta(f));
+    sit.textContent = "";
+    sit.append(elemento("span", "", f.tocada ? "★ " + notaTxt(f.nota) : "Pendente"));
+    if (f.cores.some(Boolean)) { const p = elemento("span", "pontos"); f.cores.forEach((c) => { const i = document.createElement("i"); i.style.background = c || "transparent"; p.append(i); }); sit.append(p); }
+    valor.textContent = f.tocada ? notaTxt(f.nota) + " / 5" : "Toque ou arraste nas estrelas";
+    aviso.textContent = coresRepetidas(f.cores) ? "As 3 cores da faixa precisam ser diferentes." : "";
+    validarAdicionar();
+  }
+  cab.onclick = () => { f.aberta = !f.aberta; corpo.hidden = !f.aberta; cab.setAttribute("aria-expanded", String(f.aberta)); };
+  d.append(cab, corpo);
+  // desenho inicial sem chamar validarAdicionar de novo
+  d.classList.toggle("ok", faixaCompleta(f)); sit.append(elemento("span", "", f.tocada ? "★ " + notaTxt(f.nota) : "Pendente"));
+  valor.textContent = f.tocada ? notaTxt(f.nota) + " / 5" : "Toque ou arraste nas estrelas";
+  return d;
+}
+
+function atualizarMediaAdd() {
+  const el = $("media-album"), feitas = add.faixas.filter((f) => f.tocada);
+  el.textContent = "";
+  if (!feitas.length) { el.append(elemento("div", "media-txt", "A nota do álbum é a média das notas das faixas.")); return; }
+  const media = feitas.reduce((s, f) => s + f.nota, 0) / feitas.length, parcial = feitas.length < add.faixas.length;
+  const t = elemento("div", "media-txt"); t.append("Média das faixas: ", elemento("b", "", formatarMedia(media)), " / 5" + (parcial ? ` (parcial: ${feitas.length} de ${add.faixas.length})` : ""));
+  el.append(estrelasLeitura(Math.min(5, Math.round(media * 2) / 2)), t);
+}
+
+async function publicarAlbum() {
+  const botao = $("enviar-av"); botao.disabled = true; pararPrevia();
+  try {
+    await dadosAlbum.publicar({
+      albumId: add.album.id, cores: add.cores.map((c) => c.slice(0, 7)), critica: $("critica").value.trim() || null,
+      faixas: add.faixas.map((f) => ({ musica_id: f.musica_id, nota: f.nota, cores: f.cores.map((c) => c.slice(0, 7)) }))
+    }, { album: add.album, faixas: add.faixas });
+    const aviso = $("aviso-inicio"); aviso.hidden = false; aviso.textContent = "Avaliação do álbum publicada!";
+    aba = "global"; mostrar("tela-inicio");
+  } catch (e) {
+    erro("erro-adicionar", semConexao(e) ? "Não consegui falar com o servidor. Tente de novo em instantes."
+      : e.code === "P0001" ? e.message
+      : e.code === "23514" ? "Confira a nota e as cores: algo está fora do permitido."
+      : (e.message && !e.code) ? e.message : traduzir(e));
+    validarAdicionar();
+  }
+}
+
 // --- validação, reinício e envio ---
 const mesmaCor = (a, b) => a.slice(0, 7).toLowerCase() === b.slice(0, 7).toLowerCase();
 const precisaNota = () => add.modo === "avaliacao" || $("postar-tambem").checked;
@@ -453,20 +668,27 @@ function validarAdicionar() {
   const repetida = !faltam && (mesmaCor(c[0], c[1]) || mesmaCor(c[0], c[2]) || mesmaCor(c[1], c[2]));
   $("dica-cores").textContent = repetida ? "As 3 cores precisam ser diferentes." : faltam === 3 ? "Toque em cada quadrado para escolher uma cor." : faltam ? `Faltam ${faltam} cor(es).` : "";
   let falta = "";
-  if (!add.musica) falta = "Escolha uma música.";
+  if (add.tipo === "album") {
+    const pend = add.faixas.filter((f) => !faixaCompleta(f)).length;
+    if (!add.album) falta = "Escolha um álbum.";
+    else if (pend) falta = `Faltam ${pend} de ${add.faixas.length} faixas.`;
+    else if (faltam || repetida) falta = "Escolha 3 cores diferentes para o álbum.";
+    atualizarMediaAdd(); atualizarProgresso();
+  } else if (!add.musica) falta = "Escolha uma música.";
   else if (faltam || repetida) falta = "Escolha 3 cores diferentes.";
   else if (precisaNota() && !add.notaTocada) falta = "Dê uma nota.";
   $("painel-nota").hidden = !precisaNota();
+  $("estrelas").hidden = $("nota-valor").hidden = add.tipo === "album"; $("media-album").hidden = add.tipo !== "album";
   $("dica-envio").textContent = falta; $("enviar-av").disabled = !!falta;
 }
 function iniciarAdicionar(modo = "avaliacao") {
-  Object.assign(add, { modo, musica: null, nota: 0, notaTocada: false, cores: [null, null, null], texto: false, codigo: null });
+  Object.assign(add, { modo, tipo: "musica", album: null, faixas: [], musica: null, nota: 0, notaTocada: false, cores: [null, null, null], texto: false, codigo: null });
   $("bloco-avaliacao").hidden = false; $("bloco-texto").hidden = true; $("texto-livre").value = ""; $("contador-livre").textContent = "0/2000";
   $("busca-q").type = "text";
   NOMES_TELA["tela-adicionar"] = modo === "preferida" ? "MÚSICA PREFERIDA" : "ADICIONAR";
   $("bloco-postar").hidden = modo !== "preferida"; $("postar-tambem").checked = false; $("enviar-av").textContent = modo === "preferida" ? "Salvar" : "Submeter";
   $("busca-q").value = ""; $("resultados").textContent = ""; mostrarAviso(""); $("critica").value = ""; erro("erro-adicionar");
-  seletores.forEach((s) => s.zerar()); desenharEstrelas(); validarAdicionar();
+  seletores.forEach((s) => s.zerar()); desenharEstrelas(); sincronizarTipoAdd(); validarAdicionar();
 }
 $("cancelar-av").onclick = () => (add.modo === "preferida" ? abrirPerfil(eu.id, true) : ir("inicio"));
 $("postar-tambem").onchange = validarAdicionar;
@@ -523,6 +745,7 @@ async function publicarTexto() {
 $("enviar-av").onclick = async () => {
   erro("erro-adicionar"); validarAdicionar(); if ($("enviar-av").disabled) return;
   if (add.texto) return publicarTexto();
+  if (add.tipo === "album") return publicarAlbum();
   const botao = $("enviar-av"); botao.disabled = true; pararPrevia();
   try {
     const { musica } = await chamarApi("/api/musicas", { method: "POST", body: { deezer_id: add.musica.deezer_id } });
@@ -557,22 +780,27 @@ $("enviar-av").onclick = async () => {
 const ABA_PADRAO = "global";            // quando houver bastante gente, troque para "hit"
 const TAM_PAGINA = 20;
 const eu = { id: null, perfil: null };
-const SELECT_AV = "id,tipo,musica_id,nota,critica,cor1,cor2,cor3,eh_reavaliacao,eh_primeira_da_musica,criado_em,usuario_id," +
-  "perfis!usuario_id(nome_usuario,foto_url),musicas(titulo,artista,album,capa_url,explicita)";
+// Os "!coluna" dizem ao Supabase qual vínculo usar (há mais de um caminho entre estas tabelas).
+const SELECT_AV = "id,tipo,musica_id,album_id,media_album,nota,critica,cor1,cor2,cor3,eh_reavaliacao,eh_primeira_da_musica,criado_em,usuario_id," +
+  "perfis!usuario_id(nome_usuario,foto_url),musicas!musica_id(titulo,artista,album,capa_url,explicita),albuns!album_id(id,titulo,artista,capa_url,total_faixas)";
 
 // ---- acesso aos dados (no modo demonstração usa a lista de exemplo) ----
 async function completar(linhas) {
   if (!linhas.length) return [];
   const ids = linhas.map((l) => l.id);
-  const [pl, re, ht, ct, pv, rp] = await Promise.all([
+  const idsAlbum = linhas.filter((l) => l.tipo === "album").map((l) => l.id);
+  const [pl, re, ht, ct, pv, rp, fx] = await Promise.all([
     sb.from("avaliacoes_placar").select("avaliacao_id,pontuacao").in("avaliacao_id", ids),
     sb.from("reacoes").select("avaliacao_id,tipo").in("avaliacao_id", ids),   // só as minhas (regra do banco)
     sb.from("hits").select("avaliacao_id").in("avaliacao_id", ids)           // quais já foram escolhidas como HIT
     ,sb.from("avaliacoes_comentarios").select("avaliacao_id,total").in("avaliacao_id", ids),   // comentários + respostas
     sb.rpc("comentario_previa_feed", { p_ids: ids }),                                        // comentário de quem eu sigo
     sb.rpc("info_republicacoes", { p_ids: ids })                                             // republicações: total, se eu republiquei, amigos
+    , idsAlbum.length ? sb.rpc("faixas_avaliacao", { p_ids: idsAlbum }) : Promise.resolve({ data: [] })     // faixas dos álbuns
   ]);
   const reps = Object.fromEntries(((rp && rp.data) || []).map((x) => [x.avaliacao_id, x]));
+  const faixasPor = {};
+  ((fx && fx.data) || []).forEach((x) => { (faixasPor[x.avaliacao_id] = faixasPor[x.avaliacao_id] || []).push({ musica_id: x.musica_id, posicao: x.posicao, titulo: x.titulo, artista: x.artista, explicita: x.explicita, nota: Number(x.nota), cores: [x.cor1, x.cor2, x.cor3] }); });
   const totais = Object.fromEntries((ct.data || []).map((x) => [x.avaliacao_id, x.total]));
   const previas = Object.fromEntries((pv.data || []).map((x) => [x.avaliacao_id, x]));
   const hits = new Set((ht.data || []).map((x) => x.avaliacao_id));
@@ -581,7 +809,9 @@ async function completar(linhas) {
   return linhas.map((l) => ({
     id: l.id, tipo: l.tipo || "avaliacao", musica_id: l.musica_id, nota: l.nota == null ? null : Number(l.nota), critica: l.critica, cores: [l.cor1, l.cor2, l.cor3],
     reavaliacao: l.eh_reavaliacao, primeira: l.eh_primeira_da_musica, criado_em: l.criado_em, usuario_id: l.usuario_id,
-    autor: l.perfis || {}, musica: l.musicas || {}, pontuacao: placar[l.id] || 0, minha: minhas[l.id] || null, hit: hits.has(l.id), comentarios: totais[l.id] || 0, previa: previas[l.id] || null,
+    autor: l.perfis || {},
+    album: l.albuns || null, media: l.media_album == null ? null : Number(l.media_album), faixas: faixasPor[l.id] || [],
+    musica: l.tipo === "album" && l.albuns ? { titulo: l.albuns.titulo, artista: l.albuns.artista, album: null, capa_url: l.albuns.capa_url, explicita: false } : (l.musicas || {}), pontuacao: placar[l.id] || 0, minha: minhas[l.id] || null, hit: hits.has(l.id), comentarios: totais[l.id] || 0, previa: previas[l.id] || null,
     rep_total: (reps[l.id] || {}).total || 0, rep_eu: !!(reps[l.id] || {}).republiquei, rep_amigos: (reps[l.id] || {}).amigos || [], rep_amigos_total: (reps[l.id] || {}).amigos_total || 0
   }));
 }
@@ -724,7 +954,8 @@ function cartao(av, opc = {}) {
     item.append(elemento("span", "tag repub", "Republicado"));
     if (opc.quemRepublicou && av.rep_amigos && av.rep_amigos.length) item.append(elemento("span", "repub-por", textoQuem(av.rep_amigos, av.rep_amigos_total)));
   }
-  const tags = ehTexto ? [] : [[av.hit, "hit", "HIT"], [av.primeira, "primeira", "#1 Avaliação"], [av.reavaliacao, "reav", "Re-avaliação"]];
+  const ehAlbum = av.tipo === "album";
+  const tags = ehTexto ? [] : [[ehAlbum, "album", "Álbum"], [av.hit, "hit", "HIT"], [av.primeira, "primeira", "#1 Avaliação"], [av.reavaliacao, "reav", "Re-avaliação"]];
   tags.filter((t) => t[0]).forEach((t) => item.append(elemento("span", "tag " + t[1], t[2])));
 
   const caixa = elemento("article", "av"), corpo = elemento("div", "corpo");
@@ -739,9 +970,14 @@ function cartao(av, opc = {}) {
   else {
     const titulo = elemento("h3"), abrir = elemento("button", "abrir", m.titulo || "Música"); abrir.type = "button"; titulo.append(abrir);
     if (m.explicita) titulo.append(elemento("span", "selo-e", "E"));
-    corpo.append(autor, titulo, elemento("p", "sub2", [m.artista, m.album].filter(Boolean).join(" – ")));
+    const nFaixas = av.album ? av.album.total_faixas : (av.faixas || []).length;
+    corpo.append(autor, titulo, elemento("p", "sub2", [m.artista, ehAlbum ? nFaixas + " faixas" : m.album].filter(Boolean).join(" – ")));
     if (av.critica) corpo.append(elemento("p", "texto", av.critica));
-    corpo.append(estrelasLeitura(av.nota));
+    if (ehAlbum) {                                // nota do álbum = média das faixas
+      const nl = elemento("div", "nota-album"); nl.append(estrelasLeitura(av.nota));
+      if (av.media != null) nl.append(elemento("b", "media-num", formatarMedia(av.media)));
+      corpo.append(nl);
+    } else corpo.append(estrelasLeitura(av.nota));
   }
 
   const acoes = elemento("div", "acoes");
@@ -798,7 +1034,7 @@ function cartao(av, opc = {}) {
     lado.append(ap);
   }
   caixa.append(corpo, lado); item.append(caixa);
-  caixa.onclick = (ev) => { if (!ev.target.closest(".pill, .apagar, .autor")) (ehTexto ? abrirConversa(av) : abrirAvaliacao(av)); };
+  caixa.onclick = (ev) => { if (!ev.target.closest(".pill, .apagar, .autor")) (ehTexto ? abrirConversa(av) : ehAlbum ? abrirAlbum(av) : abrirAvaliacao(av)); };
   if (av.previa) item.append(bolhaPrevia(av));
   return item;
 }
@@ -877,7 +1113,10 @@ function desenharNebulosa(cores, chave) {
   });
   x.globalAlpha = 1; x.globalCompositeOperation = "source-over";
 }
-addEventListener("resize", () => { if (!$("tela-avaliacao").hidden && pl.av) desenharNebulosa(pl.av.cores, pl.av.id); });
+addEventListener("resize", () => {
+  if (!$("tela-avaliacao").hidden && pl.av) desenharNebulosa(pl.av.cores, pl.av.id);
+  if (!$("tela-album").hidden && albumAtual) desenharNebulosa(albumAtual.cores, albumAtual.id);
+});
 
 // ---- player da prévia ----
 const pl = { av: null, url: null, audio: null, timer: null, tentou: false, versao: 0 };
@@ -960,6 +1199,7 @@ let voltarPara = null, perfilAberto = null, infoPerfil = null, origemAv = null;
 function capturarTela() {
   if (!$("tela-inicio").hidden) { const y = window.scrollY, a = aba; return () => { aba = a; manterFeed = true; mostrar("tela-inicio"); marcarAbas(); window.scrollTo(0, y); }; }
   if (!$("tela-avaliacao").hidden) { const av = pl.av; return () => abrirAvaliacao(av, true); }
+  if (!$("tela-album").hidden) { const av = albumAtual; return () => abrirAlbum(av, true); }
   if (!$("tela-buscar").hidden) return () => mostrar("tela-buscar");
   if (!$("tela-ver-perfil").hidden) { const id = perfilAberto; return () => abrirPerfil(id, true); }
   if (!$("tela-pessoas").hidden) { const l = { ...listaPessoas }; return () => abrirPessoas(l.dono, l.tipo, l.nome, l.origem); }
@@ -967,6 +1207,54 @@ function capturarTela() {
   return () => ir("inicio");
 }
 $("av-voltar").onclick = () => (origemAv || (() => ir("inicio")))();
+
+// ---- álbum: lista de faixas com nota e cores; prévia de áudio só nas faixas ----
+let albumAtual = null;
+async function previasAlbum(av) {                  // links novos (os da Deezer vencem)
+  if (av._previas) return av._previas;
+  if (DEMO) return (av._previas = Object.fromEntries((av.faixas || []).map((f) => [f.musica_id, "demo"])));
+  const id = av.album && av.album.id; if (!id) return {};
+  const { previas } = await chamarApi(`/api/albuns/${id}/previas`);
+  return (av._previas = previas || {});
+}
+function faixasEl(av) {
+  const box = elemento("div", "faixas"), botoes = {};
+  (av.faixas || []).forEach((f) => {
+    const l = elemento("div", "faixa"), t = elemento("span", "fx-tit", f.titulo);
+    if (f.explicita) t.append(elemento("span", "selo-e", "E"));
+    const nota = elemento("span", "fx-nota"); nota.innerHTML = ESTRELA + "<span></span>"; nota.lastChild.textContent = notaTxt(f.nota);
+    const pontos = elemento("span", "pontos"); f.cores.forEach((c) => { const i = document.createElement("i"); i.style.background = corOk(c); i.title = corOk(c); pontos.append(i); });
+    const b = elemento("button", "play", "▶"); b.type = "button"; b.hidden = true; b.setAttribute("aria-label", "Tocar prévia de 30 segundos de " + f.titulo);
+    botoes[f.musica_id] = b;
+    l.append(elemento("span", "fx-n", String(f.posicao)), t, nota, pontos, b); box.append(l);
+  });
+  const habilitarPrevias = async () => {
+    try {
+      const p = await previasAlbum(av);
+      (av.faixas || []).forEach((f) => {
+        const url = p[f.musica_id], b = botoes[f.musica_id];
+        if (url && (DEMO || /^https:\/\//.test(url))) { b.hidden = false; b.onclick = (ev) => { ev.stopPropagation(); tocarPrevia(url, b, () => {}); }; }
+      });
+    } catch (e) { console.error("Prévias do álbum:", e); }
+  };
+  return { el: box, habilitarPrevias };
+}
+function abrirAlbum(av, preservarOrigem) {
+  if (!preservarOrigem) origemAv = capturarTela();
+  mostrar("tela-album"); albumAtual = av;
+  const m = av.musica || {}, n = av.album ? av.album.total_faixas : (av.faixas || []).length;
+  const capa = $("al-capa"); capa.textContent = "";
+  if (/^https:\/\//.test(m.capa_url || "")) capa.style.backgroundImage = `url("${m.capa_url}")`; else { capa.style.backgroundImage = ""; capa.textContent = "♪"; }
+  $("al-titulo").textContent = m.titulo || "Álbum"; $("al-sub").textContent = [m.artista, n + " faixas"].filter(Boolean).join(" – ");
+  const est = $("al-estrelas"); est.textContent = "";
+  const nl = elemento("div", "nota-album"); nl.append(estrelasLeitura(av.nota)); if (av.media != null) nl.append(elemento("b", "media-num", formatarMedia(av.media))); est.append(nl);
+  $("al-cores").replaceChildren(...av.cores.map((c) => { const s = document.createElement("span"); s.style.background = corOk(c); s.title = corOk(c); return s; }));
+  $("al-autor").textContent = "@" + ((av.autor && av.autor.nome_usuario) || "alguém"); $("al-quando").textContent = tempoRelativo(av.criado_em); $("al-autor").onclick = () => abrirPerfil(av.usuario_id);
+  $("al-critica").textContent = av.critica || ""; $("al-critica").hidden = !av.critica;
+  const fx = faixasEl(av); $("al-faixas").replaceChildren(fx.el); fx.habilitarPrevias();
+  desenharNebulosa(av.cores, av.id);
+}
+$("al-voltar").onclick = () => (origemAv || (() => ir("inicio")))();
 
 // ---- acesso aos dados ----
 // demo: quem segue quem (as pessoas de exemplo seguem umas às outras; x1 e x2 seguem você)
@@ -1345,10 +1633,14 @@ function desenharContexto() {
     if (av.tipo === "texto") {                       // texto livre: mostra o texto, sem música nem prévia
       corpo.append(autor, elemento("p", "texto-resumo", av.critica || "")); r.append(corpo); r.style.cursor = "default"; ctx.append(r);
     } else {
-      corpo.append(autor, elemento("h3", "", m.titulo || "Música"), estrelasLeitura(av.nota));
+      const ehAlbum = av.tipo === "album";
+      let nota = estrelasLeitura(av.nota);
+      if (ehAlbum) { nota = elemento("div", "nota-album"); nota.append(estrelasLeitura(av.nota)); if (av.media != null) nota.append(elemento("b", "media-num", formatarMedia(av.media))); }
+      corpo.append(autor, elemento("h3", "", m.titulo || "Música"), nota);
       const halo = elemento("div", "halo"), capa = elemento("div", "capa-g"); halo.style.backgroundImage = fundoHalo(av.cores);
       if (/^https:\/\//.test(m.capa_url || "")) capa.style.backgroundImage = `url("${m.capa_url}")`; else capa.textContent = "♪";
-      halo.append(capa); r.append(corpo, halo); r.onclick = () => abrirAvaliacao(av); ctx.append(r);
+      halo.append(capa); r.append(corpo, halo); r.onclick = () => (ehAlbum ? abrirAlbum(av) : abrirAvaliacao(av)); ctx.append(r);
+      if (ehAlbum) { const fx = faixasEl(av); ctx.append(fx.el); fx.habilitarPrevias(); }
     }
   } else {
     const p = elemento("p", "contexto"), b = elemento("button", "", conv.foco.pai_id ? "Ver o comentário anterior" : "Ver todos os comentários"); b.type = "button";
