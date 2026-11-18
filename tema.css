@@ -273,7 +273,6 @@ button.autor-com{display:flex;align-items:center;gap:10px;background:none;border
 .seg-btn:disabled{opacity:.6;cursor:default}
 .pessoa .voce{flex:none;font-size:.8rem;font-weight:700;color:#555;padding:0 6px}
 
-/* ---- compartilhar perfil ---- */
-.pf-acoes{margin-bottom:20px}
-.pf-acoes .botao{max-width:260px;margin:0 auto 10px}
-.pf-acoes .botao:last-child{margin-bottom:0}
+/* ---- compartilhar perfil (ícone discreto no banner) ---- */
+.flut.dir.ao-lado{right:66px}                      /* no seu perfil fica ao lado do lápis de editar */
+.flut .copiado{position:absolute;top:52px;right:0;white-space:nowrap;background:var(--texto);color:#fff;font-size:.75rem;font-weight:700;padding:6px 12px;border-radius:999px;pointer-events:none}
