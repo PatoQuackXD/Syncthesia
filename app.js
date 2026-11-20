@@ -207,18 +207,112 @@ $("form-cadastro").onsubmit = async (ev) => {
   ok.hidden = false;
 };
 
-// Prévia das imagens escolhidas.
-const LIMITES = { "arq-foto": 2 * 1024 * 1024, "arq-banner": 4 * 1024 * 1024 };
-function previa(idArquivo, idAlvo) {
-  $(idArquivo).onchange = () => {
-    const arq = $(idArquivo).files[0]; erro("erro-perfil");
-    if (!arq) return;
-    if (arq.size > LIMITES[idArquivo]) { $(idArquivo).value = ""; return erro("erro-perfil", `Imagem grande demais (máximo ${LIMITES[idArquivo] / 1048576} MB).`); }
-    const alvo = $(idAlvo); alvo.style.backgroundImage = `url("${URL.createObjectURL(arq)}")`;
-    if (idAlvo === "previa-foto") alvo.textContent = "";
-  };
+// =====================================================================
+// FOTO E BANNER: a pessoa ajusta tamanho e posição ANTES de enviar
+// =====================================================================
+const LIMITE_ORIGEM = 15 * 1024 * 1024;           // o arquivo original pode ser grande: a imagem é reduzida aqui no navegador
+const FORMATOS = {
+  foto:   { titulo: "Ajustar foto",   saida: [512, 512],   dica: "Arraste para posicionar. Use o controle (ou a pinça) para mudar o tamanho." },
+  banner: { titulo: "Ajustar banner", saida: [1440, 450],  dica: "Arraste para posicionar. Em telas menores, as pontas claras podem ficar de fora." }
+};
+const imgPerfil = { foto: null, banner: null };    // { original, blob, estado, url } da imagem já ajustada
+const ED = { url: null, iw: 0, ih: 0, fw: 0, fh: 0, s: 1, smin: 1, x: 0, y: 0, fmt: null, resolver: null, pts: new Map(), distAnt: 0 };
+const ED_MAX = 5;                                  // zoom máximo: 5x o tamanho que cobre a moldura
+
+function abrirEditorImagem(arq, tipo, estado) {    // devolve { blob, estado }, null (cancelou) ou { erro: true }
+  return new Promise((resolve) => {
+    const img = $("ed-img"), palco = $("ed-palco");
+    ED.fmt = FORMATOS[tipo]; ED.resolver = resolve; ED.url = URL.createObjectURL(arq); ED.pts.clear(); ED.distAnt = 0;
+    $("ed-titulo").textContent = ED.fmt.titulo; $("ed-dica").textContent = ED.fmt.dica;
+    palco.className = "ed-palco ed-" + tipo; $("ed-mascara").className = "ed-mascara ed-" + tipo;   // (não usar só "foto"/"banner": já são classes do perfil)
+    img.onload = () => {
+      ED.iw = img.naturalWidth; ED.ih = img.naturalHeight;
+      $("editor-img").hidden = false; document.body.style.overflow = "hidden";
+      const r = palco.getBoundingClientRect(); ED.fw = r.width; ED.fh = r.height;
+      ED.smin = Math.max(ED.fw / ED.iw, ED.fh / ED.ih);                  // menor tamanho: a imagem sempre cobre a moldura
+      if (estado) { ED.s = ED.smin * estado.z; ED.x = ED.fw / 2 - estado.cx * ED.iw * ED.s; ED.y = ED.fh / 2 - estado.cy * ED.ih * ED.s; }
+      else { ED.s = ED.smin; ED.x = (ED.fw - ED.iw * ED.s) / 2; ED.y = (ED.fh - ED.ih * ED.s) / 2; }
+      edAplicar(); $("ed-ok").focus();
+    };
+    img.onerror = () => fecharEditor(null, true);
+    img.src = ED.url;
+  });
 }
-previa("arq-foto", "previa-foto"); previa("arq-banner", "previa-banner");
+function edAplicar() {
+  ED.s = Math.min(Math.max(ED.s, ED.smin), ED.smin * ED_MAX);
+  ED.x = Math.min(0, Math.max(ED.fw - ED.iw * ED.s, ED.x));              // nunca deixa aparecer "vazio" nas bordas
+  ED.y = Math.min(0, Math.max(ED.fh - ED.ih * ED.s, ED.y));
+  $("ed-img").style.transform = `translate(${ED.x}px, ${ED.y}px) scale(${ED.s})`;
+  $("ed-zoom").value = Math.round(((ED.s / ED.smin) - 1) / (ED_MAX - 1) * 100);
+}
+function edZoomEm(novoS, mx, my) {                 // muda o tamanho mantendo parado o ponto (mx, my) da moldura
+  novoS = Math.min(Math.max(novoS, ED.smin), ED.smin * ED_MAX);
+  const px = (mx - ED.x) / ED.s, py = (my - ED.y) / ED.s;
+  ED.s = novoS; ED.x = mx - px * novoS; ED.y = my - py * novoS; edAplicar();
+}
+function fecharEditor(resultado, falhou) {
+  $("editor-img").hidden = true; document.body.style.overflow = "";
+  if (ED.url) URL.revokeObjectURL(ED.url); ED.url = null; $("ed-img").removeAttribute("src");
+  const r = ED.resolver; ED.resolver = null; if (r) r(falhou ? { erro: true } : resultado);
+}
+function edConfirmar() {
+  const [W, H] = ED.fmt.saida, cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+  const ctx = cv.getContext("2d"); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, W, H); ctx.imageSmoothingQuality = "high";
+  ctx.drawImage($("ed-img"), -ED.x / ED.s, -ED.y / ED.s, ED.fw / ED.s, ED.fh / ED.s, 0, 0, W, H);
+  const estado = { z: ED.s / ED.smin, cx: (ED.fw / 2 - ED.x) / (ED.iw * ED.s), cy: (ED.fh / 2 - ED.y) / (ED.ih * ED.s) };   // para reabrir no mesmo ajuste
+  cv.toBlob((blob) => fecharEditor(blob ? { blob, estado } : null, !blob), "image/jpeg", 0.9);
+}
+(function ligarEditor() {
+  const palco = $("ed-palco");
+  palco.addEventListener("pointerdown", (e) => { palco.setPointerCapture(e.pointerId); ED.pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); ED.distAnt = 0; palco.classList.add("arrastando"); });
+  palco.addEventListener("pointermove", (e) => {
+    if (!ED.pts.has(e.pointerId)) return;
+    const ant = ED.pts.get(e.pointerId), atual = { x: e.clientX, y: e.clientY };
+    if (ED.pts.size === 1) { ED.x += atual.x - ant.x; ED.y += atual.y - ant.y; ED.pts.set(e.pointerId, atual); edAplicar(); return; }   // 1 dedo: move
+    ED.pts.set(e.pointerId, atual);                                                                                                    // 2 dedos: pinça
+    const [p, q] = [...ED.pts.values()], dist = Math.hypot(p.x - q.x, p.y - q.y), r = palco.getBoundingClientRect();
+    if (ED.distAnt) edZoomEm(ED.s * dist / ED.distAnt, (p.x + q.x) / 2 - r.left, (p.y + q.y) / 2 - r.top);
+    ED.distAnt = dist;
+  });
+  ["pointerup", "pointercancel"].forEach((ev) => palco.addEventListener(ev, (e) => { ED.pts.delete(e.pointerId); ED.distAnt = 0; if (!ED.pts.size) palco.classList.remove("arrastando"); }));
+  palco.addEventListener("wheel", (e) => { e.preventDefault(); const r = palco.getBoundingClientRect(); edZoomEm(ED.s * Math.exp(-e.deltaY * 0.0015), e.clientX - r.left, e.clientY - r.top); }, { passive: false });
+  palco.addEventListener("keydown", (e) => {
+    const passo = { ArrowLeft: [-12, 0], ArrowRight: [12, 0], ArrowUp: [0, -12], ArrowDown: [0, 12] }[e.key];
+    if (passo) { e.preventDefault(); ED.x += passo[0]; ED.y += passo[1]; edAplicar(); }
+    else if (e.key === "+" || e.key === "=") { e.preventDefault(); edZoomEm(ED.s * 1.1, ED.fw / 2, ED.fh / 2); }
+    else if (e.key === "-") { e.preventDefault(); edZoomEm(ED.s / 1.1, ED.fw / 2, ED.fh / 2); }
+  });
+  $("ed-zoom").addEventListener("input", (e) => edZoomEm(ED.smin * (1 + (+e.target.value) / 100 * (ED_MAX - 1)), ED.fw / 2, ED.fh / 2));
+  $("ed-ok").onclick = edConfirmar;
+  $("ed-cancelar").onclick = () => fecharEditor(null);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("editor-img").hidden) fecharEditor(null); });
+})();
+
+async function ajustarImagemPerfil(arq, chave, idAlvo, estadoInicial) {
+  const res = await abrirEditorImagem(arq, chave, estadoInicial);
+  if (!res) return;                                                       // cancelou: fica como estava
+  if (res.erro) return erro("erro-perfil", "Imagem: não foi possível abrir esse arquivo. Tente outra foto.");
+  const anterior = imgPerfil[chave]; if (anterior && anterior.url) URL.revokeObjectURL(anterior.url);
+  const url = URL.createObjectURL(res.blob);
+  imgPerfil[chave] = { original: arq, blob: res.blob, estado: res.estado, url };
+  const alvo = $(idAlvo); alvo.style.backgroundImage = `url("${url}")`; alvo.classList.add("editavel");
+  if (chave === "foto") alvo.textContent = "";
+  $("dica-img").hidden = false;
+}
+function limparImgPerfil() {
+  ["foto", "banner"].forEach((k) => { const i = imgPerfil[k]; if (i && i.url) URL.revokeObjectURL(i.url); imgPerfil[k] = null; });
+  $("previa-foto").classList.remove("editavel"); $("previa-banner").classList.remove("editavel"); $("dica-img").hidden = true;
+}
+[["arq-foto", "previa-foto", "foto"], ["arq-banner", "previa-banner", "banner"]].forEach(([idArq, idAlvo, chave]) => {
+  $(idArq).onchange = () => {
+    const arq = $(idArq).files[0]; erro("erro-perfil"); if (!arq) return;
+    $(idArq).value = "";                                                  // deixa escolher o mesmo arquivo de novo
+    if (!/^image\//.test(arq.type)) return erro("erro-perfil", "Imagem: escolha um arquivo JPG, PNG ou WebP.");
+    if (arq.size > LIMITE_ORIGEM) return erro("erro-perfil", `Imagem grande demais (máximo ${LIMITE_ORIGEM / 1048576} MB).`);
+    ajustarImagemPerfil(arq, chave, idAlvo);
+  };
+  $(idAlvo).onclick = () => { const i = imgPerfil[chave]; if (i) ajustarImagemPerfil(i.original, chave, idAlvo, i.estado); };   // tocar na imagem reabre o ajuste
+});
 
 async function enviarImagem(balde, uid, arquivo, nome) {
   if (!arquivo) return null;
@@ -238,8 +332,8 @@ $("form-perfil").onsubmit = async (ev) => {
   try {
     const { data } = await sb.auth.getSession();
     const uid = data.session.user.id;
-    const foto_url = await enviarImagem("fotos-perfil", uid, $("arq-foto").files[0], "foto");
-    const banner_url = await enviarImagem("banners", uid, $("arq-banner").files[0], "banner");
+    const foto_url = await enviarImagem("fotos-perfil", uid, (imgPerfil.foto && imgPerfil.foto.blob), "foto");
+    const banner_url = await enviarImagem("banners", uid, (imgPerfil.banner && imgPerfil.banner.blob), "banner");
     const { error } = await sb.from("perfis").insert({ id: uid, nome_usuario: nome, bio: bio || null, foto_url, banner_url });
     if (error) {
       if (error.code === "23505") throw new Error("Esse nome de usuário já está em uso.");
@@ -688,7 +782,8 @@ function iniciarAdicionar(modo = "avaliacao") {
   NOMES_TELA["tela-adicionar"] = modo === "preferida" ? "MÚSICA PREFERIDA" : "ADICIONAR";
   $("bloco-postar").hidden = modo !== "preferida"; $("postar-tambem").checked = false; $("enviar-av").textContent = modo === "preferida" ? "Salvar" : "Submeter";
   $("busca-q").value = ""; $("resultados").textContent = ""; mostrarAviso(""); $("critica").value = ""; erro("erro-adicionar");
-  seletores.forEach((s) => s.zerar()); desenharEstrelas(); sincronizarTipoAdd(); validarAdicionar();
+  seletores.forEach((s) => s.zerar()); add.cores.fill(null);      // o Pickr avisa "mudou" ao zerar e deixaria as 3 cores marcadas como escolhidas
+  desenharEstrelas(); sincronizarTipoAdd(); validarAdicionar();
 }
 $("cancelar-av").onclick = () => (add.modo === "preferida" ? abrirPerfil(eu.id, true) : ir("inicio"));
 $("postar-tambem").onchange = validarAdicionar;
@@ -1479,11 +1574,11 @@ $("ps-voltar").onclick = () => { voltarPara = listaPessoas.origem; abrirPerfil(l
 
 // ---- editar o próprio perfil (reaproveita a tela de criar perfil) ----
 let editandoPerfil = false;
-function restaurarFormPerfil() { editandoPerfil = false; $("perfil-titulo").textContent = "Seu perfil"; $("perfil-nome").disabled = false; $("cancelar-perfil").hidden = true; }
+function restaurarFormPerfil() { editandoPerfil = false; limparImgPerfil(); $("perfil-titulo").textContent = "Seu perfil"; $("perfil-nome").disabled = false; $("cancelar-perfil").hidden = true; }
 $("pf-editar").onclick = () => {
   editandoPerfil = true; const p = eu.perfil; erro("erro-perfil");
   $("perfil-titulo").textContent = "Editar perfil"; $("perfil-nome").value = p.nome_usuario; $("perfil-nome").disabled = true;
-  $("perfil-bio").value = p.bio || ""; $("arq-foto").value = ""; $("arq-banner").value = ""; $("cancelar-perfil").hidden = false;
+  $("perfil-bio").value = p.bio || ""; $("arq-foto").value = ""; $("arq-banner").value = ""; limparImgPerfil(); $("cancelar-perfil").hidden = false;
   $("previa-banner").style.backgroundImage = /^https:\/\//.test(p.banner_url || "") ? `url("${p.banner_url}")` : ""; pintarAvatar($("previa-foto"), p);
   mostrar("tela-perfil");
 };
@@ -1495,8 +1590,8 @@ $("form-perfil").onsubmit = async (ev) => {                  // substitui o do p
   const b = ev.submitter; ocupado(b, true);
   try {
     const { data } = await sb.auth.getSession(), uid = data.session.user.id;
-    const foto_url = await enviarImagem("fotos-perfil", uid, $("arq-foto").files[0], "foto");
-    const banner_url = await enviarImagem("banners", uid, $("arq-banner").files[0], "banner");
+    const foto_url = await enviarImagem("fotos-perfil", uid, (imgPerfil.foto && imgPerfil.foto.blob), "foto");
+    const banner_url = await enviarImagem("banners", uid, (imgPerfil.banner && imgPerfil.banner.blob), "banner");
     if (editandoPerfil) {
       const campos = { bio: bio || null }; if (foto_url) campos.foto_url = foto_url; if (banner_url) campos.banner_url = banner_url;
       const { error } = await sb.from("perfis").update(campos).eq("id", uid); if (error) throw error;
