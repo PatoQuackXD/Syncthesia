@@ -35,7 +35,8 @@ const PERFIS_DEMO = {
 };
 const SEGUINDO_DEMO = new Set();
 const mins = (n) => new Date(Date.now() - n * 60000).toISOString();
-const REPUBS_DEMO = [{ usuario_id: "x1", avaliacao_id: "d2", criado_em: mins(40) }];   // lia_discos republicou a avaliação do bruno
+const REPUBS_DEMO = [{ usuario_id: "x1", avaliacao_id: "d2", criado_em: mins(40) }];
+const FIXADOS_DEMO = [{ usuario_id: "x1", avaliacao_id: "d1", fixado_em: mins(300) }, { usuario_id: "x1", avaliacao_id: "d2", fixado_em: mins(100) }];   // lia_discos republicou a avaliação do bruno
 const COMENTARIOS_DEMO = [
   { id: "c1", avaliacao_id: "d1", pai_id: null, usuario_id: "x2", texto: "ESSA É GOAT DEMAIS", criado_em: mins(2), pontuacao: 4, minha: null },
   { id: "c2", avaliacao_id: "d1", pai_id: null, usuario_id: "x3", texto: "Tema de abertura de série, fácil.", criado_em: mins(95), pontuacao: 1, minha: null },
@@ -925,7 +926,10 @@ const dados = DEMO ? {
   },
   async republicar(av) {                           // clicar de novo desfaz
     const i = REPUBS_DEMO.findIndex((r) => r.usuario_id === eu.id && r.avaliacao_id === av.id);
-    if (i >= 0) REPUBS_DEMO.splice(i, 1); else REPUBS_DEMO.push({ usuario_id: eu.id, avaliacao_id: av.id, criado_em: new Date().toISOString() });
+    if (i >= 0) {
+      REPUBS_DEMO.splice(i, 1);
+      const j = FIXADOS_DEMO.findIndex((f) => f.usuario_id === eu.id && f.avaliacao_id === av.id); if (j >= 0) FIXADOS_DEMO.splice(j, 1);
+    } else REPUBS_DEMO.push({ usuario_id: eu.id, avaliacao_id: av.id, criado_em: new Date().toISOString() });
     const x = infoRepubDemo(av.id); return { rep_eu: x.rep_eu, rep_total: x.rep_total };
   },
   async hit() { return { itens: AVALIACOES_DEMO.filter((a) => a.hit).map((a) => comDemo({ ...a, autor: a.autor || PERFIS_DEMO[a.usuario_id] || eu.perfil })), mais: false }; },
@@ -1045,6 +1049,10 @@ function textoQuem(nomes, total) {                // "por @ana", "por @ana e @br
 function cartao(av, opc = {}) {
   const item = elemento("div", "item");
   const ehTexto = av.tipo === "texto";            // publicação de texto livre: sem música, nota, cores ou prévia
+  if (av.fixado_em) {                             // fixado no perfil: só o alfinete, sem texto
+    const pin = elemento("span", "tag fixado"); pin.title = "Fixado"; pin.setAttribute("aria-label", "Fixado");
+    pin.innerHTML = '<span class="icone i-fixar"></span>'; item.append(pin);
+  }
   if (av.republicado) {                           // aparece aqui porque alguém republicou (Seguidos ou perfil de quem republicou)
     item.append(elemento("span", "tag repub", "Republicado"));
     if (opc.quemRepublicou && av.rep_amigos && av.rep_amigos.length) item.append(elemento("span", "repub-por", textoQuem(av.rep_amigos, av.rep_amigos_total)));
@@ -1119,6 +1127,24 @@ function cartao(av, opc = {}) {
     halo.append(capa); lado.append(halo);
   }
   lado.append(elemento("span", "quando", tempoRelativo(av.criado_em)));
+  if (opc.podeFixar) {                            // só no próprio perfil: até 3 fixados; o último fixado fica por cima
+    const fx = elemento("button", "apagar fixar", av.fixado_em ? "Desafixar" : "Fixar"); fx.type = "button";
+    fx.onclick = async () => {
+      const fixando = !av.fixado_em;
+      if (fixando && itensPerfil.filter((x) => x.fixado_em).length >= 3) { alert("Você já fixou 3, desafixe uma antes."); return; }
+      fx.disabled = true;
+      try {
+        const mapa = await dadosPerfil.fixar(av.id, fixando);
+        itensPerfil.forEach((x) => { x.fixado_em = mapa[x.id] || null; });
+        desenharListaPerfil();
+        if (fixando) $("pf-lista").scrollIntoView({ block: "start", behavior: "smooth" });
+      } catch (e) {
+        console.error(e); fx.disabled = false;
+        alert(e.code === "P0001" && e.message ? e.message : "Não foi possível fixar agora. Tente de novo.");
+      }
+    };
+    lado.append(fx);
+  }
   if (av.usuario_id === eu.id) {
     const ap = elemento("button", "apagar", "Apagar"); ap.type = "button";
     ap.onclick = async () => {
@@ -1376,7 +1402,26 @@ const dadosPerfil = DEMO ? {
       const a = AVALIACOES_DEMO.find((y) => y.id === r.avaliacao_id);
       return a && comDemo({ ...a, autor: autor(a), republicado: true, evento_em: r.criado_em });
     }).filter(Boolean);
-    return [...orig, ...rep].sort((x, y) => y.evento_em.localeCompare(x.evento_em));
+    const todos = [...orig, ...rep];
+    const pins = Object.fromEntries(FIXADOS_DEMO.filter((f) => f.usuario_id === id).map((f) => [f.avaliacao_id, f.fixado_em]));
+    todos.forEach((x) => { if (pins[x.id]) x.fixado_em = pins[x.id]; });
+    const fixados = todos.filter((x) => x.fixado_em).sort((x, y) => y.fixado_em.localeCompare(x.fixado_em));   // o último fixado fica por cima
+    const resto = todos.filter((x) => !x.fixado_em).sort((x, y) => y.evento_em.localeCompare(x.evento_em));
+    return [...fixados, ...resto];
+  },
+  async fixar(avId, sim) {                          // devolve { id da publicação: fixado_em } dos MEUS fixados
+    const meus = FIXADOS_DEMO.filter((f) => f.usuario_id === eu.id);
+    if (sim) {
+      const x = AVALIACOES_DEMO.find((y) => y.id === avId);
+      const meu = x && (x.usuario_id === eu.id || REPUBS_DEMO.some((r) => r.usuario_id === eu.id && r.avaliacao_id === avId));
+      if (!meu) throw Object.assign(new Error("Você só pode fixar o que você publicou ou republicou."), { code: "P0001" });
+      const ja = meus.find((f) => f.avaliacao_id === avId);
+      if (!ja && meus.length >= 3) throw Object.assign(new Error("Você já fixou 3, desafixe uma antes."), { code: "P0001" });
+      if (ja) ja.fixado_em = new Date().toISOString(); else FIXADOS_DEMO.push({ usuario_id: eu.id, avaliacao_id: avId, fixado_em: new Date().toISOString() });
+    } else {
+      const i = FIXADOS_DEMO.findIndex((f) => f.usuario_id === eu.id && f.avaliacao_id === avId); if (i >= 0) FIXADOS_DEMO.splice(i, 1);
+    }
+    return Object.fromEntries(FIXADOS_DEMO.filter((f) => f.usuario_id === eu.id).map((f) => [f.avaliacao_id, f.fixado_em]));
   },
   async idPorNome(nome) {
     const t = nome.toLowerCase();
@@ -1424,9 +1469,10 @@ const dadosPerfil = DEMO ? {
     return { pessoas, sigo, cheio: ids.length >= 1000 };
   },
   async avaliacoes(id) {                           // as avaliações da pessoa + o que ela republicou
-    const [o, r] = await Promise.all([
+    const [o, r, fx] = await Promise.all([
       sb.from("avaliacoes").select(SELECT_AV).eq("usuario_id", id).order("criado_em", { ascending: false }).limit(50),
-      sb.from("republicacoes").select("avaliacao_id,criado_em").eq("usuario_id", id).order("criado_em", { ascending: false }).limit(50)
+      sb.from("republicacoes").select("avaliacao_id,criado_em").eq("usuario_id", id).order("criado_em", { ascending: false }).limit(50),
+      sb.from("fixados").select("avaliacao_id,fixado_em").eq("usuario_id", id)                      // até 3
     ]);
     if (o.error) throw o.error;
     const originais = await completar(o.data); originais.forEach((a) => { a.evento_em = a.criado_em; });
@@ -1438,7 +1484,25 @@ const dadosPerfil = DEMO ? {
       const quando = Object.fromEntries(reps.map((x) => [x.avaliacao_id, x.criado_em]));
       repub = (await completar(data)).map((a) => ({ ...a, republicado: true, evento_em: quando[a.id] }));
     }
-    return [...originais, ...repub].sort((x, y) => new Date(y.evento_em) - new Date(x.evento_em)).slice(0, 50);
+    const todos = [...originais, ...repub];
+    const pins = fx.error ? {} : Object.fromEntries((fx.data || []).map((x) => [x.avaliacao_id, x.fixado_em]));   // sem a tabela nova: ninguém fixado
+    const faltam = Object.keys(pins).filter((pid) => !todos.some((x) => x.id === pid));                       // fixado antigo, fora dos 50 mais recentes
+    if (faltam.length) {
+      const { data, error } = await sb.from("avaliacoes").select(SELECT_AV).in("id", faltam);
+      if (error) throw error;
+      (await completar(data)).forEach((x) => todos.push({ ...x, republicado: x.usuario_id !== id, evento_em: pins[x.id] }));
+    }
+    todos.forEach((x) => { if (pins[x.id]) x.fixado_em = pins[x.id]; });
+    const fixados = todos.filter((x) => x.fixado_em).sort((x, y) => new Date(y.fixado_em) - new Date(x.fixado_em));   // o último fixado fica por cima
+    const resto = todos.filter((x) => !x.fixado_em).sort((x, y) => new Date(y.evento_em) - new Date(x.evento_em)).slice(0, 50);
+    return [...fixados, ...resto];
+  },
+  async fixar(avId, sim) {                          // devolve { id da publicação: fixado_em } dos MEUS fixados
+    const r = await sb.rpc(sim ? "fixar_post" : "desafixar_post", { p_avaliacao_id: avId });
+    if (r.error) throw r.error;
+    const { data, error } = await sb.from("fixados").select("avaliacao_id,fixado_em").eq("usuario_id", eu.id);
+    if (error) throw error;
+    return Object.fromEntries(data.map((x) => [x.avaliacao_id, x.fixado_em]));
   },
   async buscar(q) {
     let c = sb.from("perfis").select("id,nome_usuario,bio,foto_url,criado_em").neq("id", eu.id).limit(20);
@@ -1468,8 +1532,10 @@ function desenharListaPerfil() {
   const t = (a) => new Date(a.evento_em || a.criado_em).getTime();      // republicado conta pela data em que foi republicado
   const por = { recentes: (a, b) => t(b) - t(a), curtidas: (a, b) => b.pontuacao - a.pontuacao || t(b) - t(a), nota: (a, b) => (b.nota || 0) - (a.nota || 0) || t(b) - t(a) };
   const dono = perfilAberto === eu.id;
-  [...itensPerfil].sort(por[$("pf-ordem").value]).forEach((a) => lista.append(cartao(a, {
-    semAutor: !a.republicado, aviso: avisoPerfil,
+  const fixados = itensPerfil.filter((a) => a.fixado_em).sort((a, b) => new Date(b.fixado_em) - new Date(a.fixado_em));   // o último fixado fica por cima
+  const resto = itensPerfil.filter((a) => !a.fixado_em).sort(por[$("pf-ordem").value]);
+  [...fixados, ...resto].forEach((a) => lista.append(cartao(a, {
+    semAutor: !a.republicado, aviso: avisoPerfil, podeFixar: dono,
     removerAoDesfazer: a.republicado && dono,       // desfazer no próprio perfil tira o cartão da lista
     aoRemover: () => { itensPerfil = itensPerfil.filter((x) => !(x.id === a.id && x.republicado)); if (!lista.children.length) avisoPerfil("Ainda não avaliou nenhuma música."); }
   })));
