@@ -3,7 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="color-scheme" content="light">
+<meta name="color-scheme" content="only light">
+<meta name="supported-color-schemes" content="light only">
+<meta name="theme-color" content="#FEFFE0">
+<meta name="darkreader-lock">
 <title>Syncthesia</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -71,6 +74,7 @@
         <label>Foto <input type="file" id="arq-foto" accept="image/jpeg,image/png,image/webp"></label>
         <label>Banner <input type="file" id="arq-banner" accept="image/jpeg,image/png,image/webp"></label>
       </div>
+      <div class="dica" id="dica-img" hidden>Toque na foto ou no banner lá em cima para ajustar de novo.</div>
       <label class="rotulo" for="perfil-nome">Nome de usuário</label>
       <input class="campo" id="perfil-nome" placeholder="ex.: maria_musica" maxlength="20" autocomplete="off">
       <div class="dica">3 a 20 caracteres: letras, números, _ e ponto.</div>
@@ -258,6 +262,18 @@
   <h2 id="m-t">Apagar comentário?</h2><p id="m-p"></p>
   <button class="botao" id="m-apagar" type="button" style="background:var(--vermelho);color:#fff">Apagar</button>
   <button class="link" id="m-cancelar" type="button">Cancelar</button>
+</div></div>
+
+<div id="editor-img" hidden><div class="caixa-editor" role="dialog" aria-modal="true" aria-labelledby="ed-titulo">
+  <h2 id="ed-titulo">Ajustar foto</h2>
+  <p class="ed-dica" id="ed-dica"></p>
+  <div class="ed-palco ed-foto" id="ed-palco" tabindex="0" aria-label="Área de ajuste: arraste a imagem; setas movem; + e - mudam o tamanho">
+    <img id="ed-img" alt="" draggable="false">
+    <div class="ed-mascara ed-foto" id="ed-mascara"></div>
+  </div>
+  <label class="ed-zoom"><span>Tamanho</span><input type="range" id="ed-zoom" min="0" max="100" value="0" step="1" aria-label="Tamanho da imagem"></label>
+  <button class="botao" id="ed-ok" type="button">Usar esta imagem</button>
+  <button class="link" id="ed-cancelar" type="button">Cancelar</button>
 </div></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
