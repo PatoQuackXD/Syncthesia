@@ -9,7 +9,7 @@
 @font-face{font-family:"Poltik";src:local("Poltik"),url("fonts/Poltik.woff2") format("woff2");font-display:swap}
 
 :root{
-  color-scheme:light;
+  color-scheme:only light;   /* "only": o aparelho não pode escurecer o site (modo noturno) */
   --fundo:#FEFFE0; --card:#F2F1EF; --branco:#FFFFFF; --painel:#C8D1DA;
   --amarelo:#F1D005; --amarelo-botao:#FBCA41; --amarelo-hit:#FFBC01;
   --vermelho:#FE1A1B; --azul:#5170FF; --verde:#74DC47; --cinza:#787878; --texto:#000;
@@ -329,3 +329,29 @@ button.autor-com{display:flex;align-items:center;gap:10px;background:none;border
 .faixa .fx-nota{flex:none;display:flex;align-items:center;gap:3px;font-weight:800;font-size:.85rem}
 .faixa .fx-nota svg{width:16px;height:16px;fill:var(--amarelo-botao)}
 .faixa .play{width:34px;height:34px;font-size:.75rem}
+
+/* ---- cores fixas: mesmo com o aparelho em modo escuro, o site continua igual ---- */
+@media (prefers-color-scheme: dark){
+  :root{color-scheme:only light}
+  html,body{background:var(--fundo);color:var(--texto)}
+}
+
+/* ---- editor de foto e banner (tamanho e posição antes de enviar) ---- */
+#editor-img{position:fixed;inset:0;background:#000b;display:grid;place-items:center;z-index:60;padding:16px;overflow:auto}
+.caixa-editor{background:var(--branco);border-radius:28px;padding:20px;width:100%;max-width:420px}
+.caixa-editor h2{margin:0 0 6px;font-size:1.2rem}
+.ed-dica{margin:0 0 12px;font-size:.85rem;color:#333}
+.ed-palco{position:relative;overflow:hidden;background:#222;border-radius:16px;touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none;margin:0 auto 14px;outline:none}
+.ed-palco.arrastando{cursor:grabbing}
+.ed-palco:focus-visible{box-shadow:0 0 0 3px var(--texto)}
+.ed-palco.ed-foto{width:min(100%,300px);aspect-ratio:1/1}
+.ed-palco.ed-banner{width:100%;aspect-ratio:16/5}
+.ed-palco img{position:absolute;left:0;top:0;max-width:none;width:auto;height:auto;transform-origin:0 0;pointer-events:none;-webkit-user-drag:none}
+.ed-mascara{position:absolute;inset:0;pointer-events:none}
+.ed-mascara.ed-foto{border-radius:50%;box-shadow:0 0 0 999px rgba(255,255,255,.65);border:2px solid #fff}
+.ed-mascara.ed-banner{background:linear-gradient(to right,rgba(255,255,255,.6) 0,rgba(255,255,255,.6) 16.67%,transparent 16.67%,transparent 83.33%,rgba(255,255,255,.6) 83.33%)}
+.ed-mascara.ed-banner::before,.ed-mascara.ed-banner::after{content:"";position:absolute;top:0;bottom:0;border-left:2px dashed #fff}
+.ed-mascara.ed-banner::before{left:16.67%}.ed-mascara.ed-banner::after{left:83.33%}
+.ed-zoom{display:flex;align-items:center;gap:12px;font-weight:800;font-size:.8rem;text-transform:uppercase;margin:0 4px 12px}
+.ed-zoom input{flex:1;accent-color:var(--texto);height:28px}
+.capa .editavel{cursor:pointer}
